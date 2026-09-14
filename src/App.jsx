@@ -23,6 +23,8 @@ import {
 } from "./lib/dataService";
 import SubscriptionBanner from "./components/SubscriptionBanner";
 import { getUserPlanInfo, countTxThisMonth } from "./lib/planAccess";
+import { exportTransactionsCsv, exportSummaryCsv } from "./lib/exportCsv";
+import { exportElementAsPng } from "./lib/exportImage";
 
 /* ---------------------------------------------------------------
    Seed data — imported from the user's existing spreadsheet
@@ -645,7 +647,7 @@ function ConfirmDialog({ title, body, onConfirm, onClose }) {
 /* ---------------------------------------------------------------
    Transactions page — search, filter, sort, CRUD
 ------------------------------------------------------------------*/
-function TransactionsPage({ transactions, categories, onAdd, onEdit, onDelete }) {
+function TransactionsPage({ transactions, categories, onAdd, onEdit, onDelete, canExport, onExportBlocked }) {
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [catFilter, setCatFilter] = useState("all");
@@ -685,13 +687,26 @@ function TransactionsPage({ transactions, categories, onAdd, onEdit, onDelete })
     else { setSortKey(key); setSortDir("desc"); }
   }
 
+  function handleExport() {
+    if (!canExport) {
+      if (onExportBlocked) onExportBlocked();
+      return;
+    }
+    exportTransactionsCsv(filtered.length ? filtered : transactions);
+  }
+
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginBottom: 16 }}>
         <h2 className="bk-serif" style={{ fontSize: 22, margin: 0 }}>Transaksi</h2>
-        <button className="bk-btn bk-btn-primary" onClick={() => { setEditing(null); setModalOpen(true); }}>
-          <Plus size={16} /> Tambah transaksi
-        </button>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button className="bk-btn bk-btn-ghost" onClick={handleExport} title={canExport ? "Export CSV" : "Khusus Basic/Pro"}>
+            Export CSV{!canExport ? " 🔒" : ""}
+          </button>
+          <button className="bk-btn bk-btn-primary" onClick={() => { setEditing(null); setModalOpen(true); }}>
+            <Plus size={16} /> Tambah transaksi
+          </button>
+        </div>
       </div>
 
       <div className="bk-card" style={{ padding: 14, marginBottom: 14, display: "flex", flexDirection: "column", gap: 10 }}>
@@ -793,7 +808,7 @@ function Th({ children, onClick, active, dir, align }) {
 /* ---------------------------------------------------------------
    Category manager
 ------------------------------------------------------------------*/
-function CategoriesPage({ categories, transactions, onChange }) {
+function CategoriesPage({ categories, transactions, onChange, canEdit }) {
   const [newIncomeCat, setNewIncomeCat] = useState("");
   const [newExpenseCat, setNewExpenseCat] = useState("");
   const [editingKey, setEditingKey] = useState(null); // "type::name"
@@ -804,7 +819,14 @@ function CategoriesPage({ categories, transactions, onChange }) {
     return transactions.filter((t) => t.type === type && t.category === name).length;
   }
 
+  function guardEdit() {
+    if (canEdit) return true;
+    setNotice("Ubah kategori custom hanya untuk paket Basic/Pro. Silakan upgrade di menu Langganan.");
+    return false;
+  }
+
   function addCategory(type) {
+    if (!guardEdit()) return;
     const name = (type === "income" ? newIncomeCat : newExpenseCat).trim();
     if (!name) return;
     if (categories[type].includes(name)) { setNotice("Kategori sudah ada."); return; }
@@ -814,14 +836,20 @@ function CategoriesPage({ categories, transactions, onChange }) {
   }
 
   function removeCategory(type, name) {
+    if (!guardEdit()) return;
     const count = usageCount(type, name);
     if (count > 0) { setNotice(`"${name}" dipakai di ${count} transaksi — pindahkan transaksinya dulu sebelum menghapus.`); return; }
     onChange({ ...categories, [type]: categories[type].filter((c) => c !== name) });
   }
 
-  function startEdit(type, name) { setEditingKey(type + "::" + name); setEditValue(name); }
+  function startEdit(type, name) {
+    if (!guardEdit()) return;
+    setEditingKey(type + "::" + name);
+    setEditValue(name);
+  }
 
   function commitEdit(type, oldName) {
+    if (!guardEdit()) return;
     const val = editValue.trim();
     setEditingKey(null);
     if (!val || val === oldName) return;
@@ -848,18 +876,19 @@ function CategoriesPage({ categories, transactions, onChange }) {
               </span>
             )}
             <div style={{ display: "flex", gap: 2 }}>
-              <button className="bk-btn bk-btn-ghost" style={{ padding: 4 }} onClick={() => startEdit(type, c)}><Pencil size={12} /></button>
-              <button className="bk-btn bk-btn-ghost" style={{ padding: 4 }} onClick={() => removeCategory(type, c)}><Trash2 size={12} color="var(--clay)" /></button>
+              <button className="bk-btn bk-btn-ghost" style={{ padding: 4, opacity: canEdit ? 1 : 0.4 }} onClick={() => startEdit(type, c)} disabled={!canEdit}><Pencil size={12} /></button>
+              <button className="bk-btn bk-btn-ghost" style={{ padding: 4, opacity: canEdit ? 1 : 0.4 }} onClick={() => removeCategory(type, c)} disabled={!canEdit}><Trash2 size={12} color="var(--clay)" /></button>
             </div>
           </div>
         ))}
       </div>
       <div style={{ display: "flex", gap: 6 }}>
-        <input className="bk-input" placeholder={`Kategori ${title.toLowerCase()} baru…`}
+        <input className="bk-input" placeholder={canEdit ? `Kategori ${title.toLowerCase()} baru…` : "Upgrade Basic/Pro untuk kategori custom"}
           value={type === "income" ? newIncomeCat : newExpenseCat}
+          disabled={!canEdit}
           onChange={(e) => (type === "income" ? setNewIncomeCat(e.target.value) : setNewExpenseCat(e.target.value))}
           onKeyDown={(e) => { if (e.key === "Enter") addCategory(type); }} />
-        <button className="bk-btn bk-btn-primary" onClick={() => addCategory(type)}><Plus size={14} /></button>
+        <button className="bk-btn bk-btn-primary" onClick={() => addCategory(type)} disabled={!canEdit} style={{ opacity: canEdit ? 1 : 0.5 }}><Plus size={14} /></button>
       </div>
     </div>
   );
@@ -867,6 +896,11 @@ function CategoriesPage({ categories, transactions, onChange }) {
   return (
     <div>
       <h2 className="bk-serif" style={{ fontSize: 22, marginBottom: 16 }}>Kategori</h2>
+      {!canEdit && (
+        <div className="bk-card" style={{ padding: "10px 14px", marginBottom: 14, fontSize: 13, color: "var(--ink-dim)" }}>
+          Paket <b>Gratis</b>: kategori bawaan bisa dipakai. Tambah/edit/hapus kategori custom tersedia di <b>Basic/Pro</b>.
+        </div>
+      )}
       {notice && (
         <div className="bk-card" style={{ padding: "10px 14px", marginBottom: 14, display: "flex", alignItems: "center", gap: 8, borderColor: "var(--clay)" }}>
           <AlertCircle size={15} color="var(--clay)" />
@@ -1017,7 +1051,10 @@ function Dashboard({ transactions, categories, saldoAwal }) {
 /* ---------------------------------------------------------------
    Ringkasan Keuangan (summary / insights)
 ------------------------------------------------------------------*/
-function SummaryPage({ transactions, categories }) {
+function SummaryPage({ transactions, categories, canExport, onExportBlocked }) {
+  const captureRef = useRef(null);
+  const [exportingImg, setExportingImg] = useState(false);
+
   const byMonth = useMemo(() => {
     const map = {};
     transactions.forEach((t) => {
@@ -1051,79 +1088,125 @@ function SummaryPage({ transactions, categories }) {
     insight = `Pengeluaran terbesar bulan ini berasal dari kategori ${topCatThisMonth[0]}, senilai ${rupiah(topCatThisMonth[1])}.`;
   }
 
+  function handleExportSummary() {
+    if (!canExport) {
+      if (onExportBlocked) onExportBlocked();
+      return;
+    }
+    exportSummaryCsv(transactions);
+  }
+
+  async function handleExportImage() {
+    if (!canExport) {
+      if (onExportBlocked) onExportBlocked();
+      return;
+    }
+    try {
+      setExportingImg(true);
+      const stamp = new Date().toISOString().slice(0, 10);
+      await exportElementAsPng(captureRef.current, `bukukas-ringkasan-${stamp}.png`);
+    } catch (e) {
+      console.error(e);
+      alert("Gagal export gambar. Coba lagi.");
+    } finally {
+      setExportingImg(false);
+    }
+  }
+
   return (
     <div>
-      <h2 className="bk-serif" style={{ fontSize: 22, marginBottom: 16 }}>Ringkasan keuangan</h2>
-
-      <div className="bk-card" style={{ padding: "14px 18px", marginBottom: 16, display: "flex", gap: 10, alignItems: "flex-start", borderColor: "var(--brass)" }}>
-        <TrendingUp size={18} color="var(--brass)" style={{ flexShrink: 0, marginTop: 2 }} />
-        <div style={{ fontSize: 13.5, lineHeight: 1.5 }}>{insight}</div>
-      </div>
-
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
-        <StatCard label="Total pemasukan (semua waktu)" value={rupiah(totalIncomeAll)} tone="up" icon={ArrowUpCircle} />
-        <StatCard label="Total pengeluaran (semua waktu)" value={rupiah(totalExpenseAll)} tone="down" icon={ArrowDownCircle} />
-        <StatCard label="Rata-rata per transaksi keluar" value={rupiah(avgExpense)} icon={Receipt} />
-      </div>
-
-      <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
-        <div className="bk-card" style={{ padding: 16, flex: "2 1 420px", minWidth: 320 }}>
-          <h4 className="bk-serif" style={{ fontSize: 15, margin: "0 0 12px" }}>Tren 6 bulan terakhir</h4>
-          <ResponsiveContainer width="100%" height={220}>
-            <LineChart data={trend}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--paper-line)" vertical={false} />
-              <XAxis dataKey="label" stroke="var(--ink-dim)" fontSize={12} tickLine={false} axisLine={false} />
-              <YAxis stroke="var(--ink-dim)" fontSize={11} tickFormatter={shortRupiah} tickLine={false} axisLine={false} width={54} />
-              <Tooltip contentStyle={{ background: "#1D2E28", border: "1px solid #2B3E37", borderRadius: 8, fontSize: 12.5 }} formatter={(v) => rupiah(v)} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Line type="monotone" dataKey="income" name="Pemasukan" stroke="#C9A24B" strokeWidth={2} dot={{ r: 3 }} />
-              <Line type="monotone" dataKey="expense" name="Pengeluaran" stroke="#C4735A" strokeWidth={2} dot={{ r: 3 }} />
-            </LineChart>
-          </ResponsiveContainer>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginBottom: 16 }}>
+        <h2 className="bk-serif" style={{ fontSize: 22, margin: 0 }}>Ringkasan keuangan</h2>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }} data-export-ignore="true">
+          <button
+            className="bk-btn bk-btn-ghost"
+            onClick={handleExportSummary}
+            title={canExport ? "Export ringkasan CSV" : "Khusus Basic/Pro"}
+          >
+            Export CSV{!canExport ? " 🔒" : ""}
+          </button>
+          <button
+            className="bk-btn bk-btn-ghost"
+            onClick={handleExportImage}
+            disabled={exportingImg}
+            title={canExport ? "Export ringkasan sebagai gambar PNG" : "Khusus Basic/Pro"}
+          >
+            {exportingImg ? "Menyimpan..." : `Export gambar${!canExport ? " 🔒" : ""}`}
+          </button>
         </div>
-        <div className="bk-card" style={{ padding: 16, flex: "1 1 260px", minWidth: 240 }}>
-          <h4 className="bk-serif" style={{ fontSize: 15, margin: "0 0 12px" }}>5 kategori pengeluaran terbesar</h4>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {topCatsAll.map(([name, val]) => (
-              <div key={name}>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, marginBottom: 4 }}>
-                  <span>{name}</span>
-                  <span className="bk-mono" style={{ color: "var(--ink-dim)" }}>{rupiah(val)}</span>
+      </div>
+
+      <div ref={captureRef} style={{ background: "#16231F", padding: 8, borderRadius: 12 }}>
+        <div className="bk-card" style={{ padding: "14px 18px", marginBottom: 16, display: "flex", gap: 10, alignItems: "flex-start", borderColor: "var(--brass)" }}>
+          <TrendingUp size={18} color="var(--brass)" style={{ flexShrink: 0, marginTop: 2 }} />
+          <div style={{ fontSize: 13.5, lineHeight: 1.5 }}>{insight}</div>
+        </div>
+
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+          <StatCard label="Total pemasukan (semua waktu)" value={rupiah(totalIncomeAll)} tone="up" icon={ArrowUpCircle} />
+          <StatCard label="Total pengeluaran (semua waktu)" value={rupiah(totalExpenseAll)} tone="down" icon={ArrowDownCircle} />
+          <StatCard label="Rata-rata per transaksi keluar" value={rupiah(avgExpense)} icon={Receipt} />
+        </div>
+
+        <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+          <div className="bk-card" style={{ padding: 16, flex: "2 1 420px", minWidth: 320 }}>
+            <h4 className="bk-serif" style={{ fontSize: 15, margin: "0 0 12px" }}>Tren 6 bulan terakhir</h4>
+            <ResponsiveContainer width="100%" height={220}>
+              <LineChart data={trend}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--paper-line)" vertical={false} />
+                <XAxis dataKey="label" stroke="var(--ink-dim)" fontSize={12} tickLine={false} axisLine={false} />
+                <YAxis stroke="var(--ink-dim)" fontSize={11} tickFormatter={shortRupiah} tickLine={false} axisLine={false} width={54} />
+                <Tooltip contentStyle={{ background: "#1D2E28", border: "1px solid #2B3E37", borderRadius: 8, fontSize: 12.5 }} formatter={(v) => rupiah(v)} />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Line type="monotone" dataKey="income" name="Pemasukan" stroke="#C9A24B" strokeWidth={2} dot={{ r: 3 }} />
+                <Line type="monotone" dataKey="expense" name="Pengeluaran" stroke="#C4735A" strokeWidth={2} dot={{ r: 3 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="bk-card" style={{ padding: 16, flex: "1 1 260px", minWidth: 240 }}>
+            <h4 className="bk-serif" style={{ fontSize: 15, margin: "0 0 12px" }}>5 kategori pengeluaran terbesar</h4>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {topCatsAll.map(([name, val]) => (
+                <div key={name}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, marginBottom: 4 }}>
+                    <span>{name}</span>
+                    <span className="bk-mono" style={{ color: "var(--ink-dim)" }}>{rupiah(val)}</span>
+                  </div>
+                  <div style={{ height: 6, background: "var(--paper)", borderRadius: 999 }}>
+                    <div style={{ height: "100%", width: `${topCatsAll[0] && topCatsAll[0][1] ? (val / topCatsAll[0][1]) * 100 : 0}%`, background: colorForCategory(name, categories.expense), borderRadius: 999 }} />
+                  </div>
                 </div>
-                <div style={{ height: 6, background: "var(--paper)", borderRadius: 999 }}>
-                  <div style={{ height: "100%", width: `${(val / topCatsAll[0][1]) * 100}%`, background: colorForCategory(name, categories.expense), borderRadius: 999 }} />
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
-      </div>
 
-      <div className="bk-card bk-scroll" style={{ overflowX: "auto", marginTop: 14 }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 480 }}>
-          <thead>
-            <tr style={{ borderBottom: "1px solid var(--paper-line)", textAlign: "left" }}>
-              <th style={thStyle}>Bulan</th>
-              <th style={{ ...thStyle, textAlign: "right" }}>Pemasukan</th>
-              <th style={{ ...thStyle, textAlign: "right" }}>Pengeluaran</th>
-              <th style={{ ...thStyle, textAlign: "right" }}>Selisih</th>
-              <th style={{ ...thStyle, textAlign: "right" }}>Transaksi</th>
-            </tr>
-          </thead>
-          <tbody>
-            {byMonth.map((m) => (
-              <tr key={m.key} className="bk-row" style={{ borderBottom: "1px solid var(--paper-line)" }}>
-                <td style={tdStyle}>{MONTH_LABEL(m.key)}</td>
-                <td style={{ ...tdStyle, textAlign: "right" }} className="bk-mono">{rupiah(m.income)}</td>
-                <td style={{ ...tdStyle, textAlign: "right" }} className="bk-mono">{rupiah(m.expense)}</td>
-                <td style={{ ...tdStyle, textAlign: "right" }} className="bk-mono" >
-                  <span style={{ color: m.income - m.expense >= 0 ? "var(--brass)" : "var(--clay)" }}>{rupiah(m.income - m.expense)}</span>
-                </td>
-                <td style={{ ...tdStyle, textAlign: "right" }}>{m.count}</td>
+        <div className="bk-card bk-scroll" style={{ overflowX: "auto", marginTop: 14 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 480 }}>
+            <thead>
+              <tr style={{ borderBottom: "1px solid var(--paper-line)", textAlign: "left" }}>
+                <th style={thStyle}>Bulan</th>
+                <th style={{ ...thStyle, textAlign: "right" }}>Pemasukan</th>
+                <th style={{ ...thStyle, textAlign: "right" }}>Pengeluaran</th>
+                <th style={{ ...thStyle, textAlign: "right" }}>Selisih</th>
+                <th style={{ ...thStyle, textAlign: "right" }}>Transaksi</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {byMonth.map((m) => (
+                <tr key={m.key} className="bk-row" style={{ borderBottom: "1px solid var(--paper-line)" }}>
+                  <td style={tdStyle}>{MONTH_LABEL(m.key)}</td>
+                  <td style={{ ...tdStyle, textAlign: "right" }} className="bk-mono">{rupiah(m.income)}</td>
+                  <td style={{ ...tdStyle, textAlign: "right" }} className="bk-mono">{rupiah(m.expense)}</td>
+                  <td style={{ ...tdStyle, textAlign: "right" }} className="bk-mono">
+                    <span style={{ color: m.income - m.expense >= 0 ? "var(--brass)" : "var(--clay)" }}>{rupiah(m.income - m.expense)}</span>
+                  </td>
+                  <td style={{ ...tdStyle, textAlign: "right" }}>{m.count}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
@@ -1235,6 +1318,10 @@ export default function App() {
 
   async function updateCategories(next) {
     try {
+      if (planInfo && !planInfo.canUseCustomCategory) {
+        showToast("Ubah kategori custom hanya untuk paket Basic/Pro. Silakan upgrade.");
+        return;
+      }
       await saveCategories(user.id, next);
       setCategories(next);
       showToast("Kategori diperbarui.");
@@ -1424,12 +1511,30 @@ export default function App() {
             onAdd={addTransaction}
             onEdit={editTransaction}
             onDelete={deleteTransaction}
+            canExport={!!planInfo?.canUseExport}
+            onExportBlocked={() =>
+              showToast("Export CSV khusus paket Basic/Pro. Silakan upgrade di menu Langganan.")
+            }
           />
         )}
         {tab === "categories" && (
-          <CategoriesPage categories={categories} transactions={transactions} onChange={updateCategories} />
+          <CategoriesPage
+            categories={categories}
+            transactions={transactions}
+            onChange={updateCategories}
+            canEdit={!!planInfo?.canUseCustomCategory}
+          />
         )}
-        {tab === "summary" && <SummaryPage transactions={transactions} categories={categories} />}
+        {tab === "summary" && (
+          <SummaryPage
+            transactions={transactions}
+            categories={categories}
+            canExport={!!planInfo?.canUseExport}
+            onExportBlocked={() =>
+              showToast("Export ringkasan khusus paket Basic/Pro. Silakan upgrade di menu Langganan.")
+            }
+          />
+        )}
       </main>
 
       {toast && (

@@ -7,6 +7,10 @@ import {
   getMaintenance,
   setMaintenance,
 } from '../lib/adminService'
+import {
+  getPaymentAccount,
+  setPaymentAccount,
+} from '../lib/paymentAccountService'
 
 export default function SuperAdminHome() {
   const { profile, user, signOut } = useAuth()
@@ -20,14 +24,21 @@ export default function SuperAdminHome() {
     message: 'Sistem sedang dalam perbaikan.',
     estimated_end: '',
   })
+  const [payAcc, setPayAcc] = useState({
+    bank_name: '',
+    account_number: '',
+    account_name: '',
+    notes: '',
+  })
 
   async function load() {
     setLoading(true)
     setError('')
     try {
-      const [data, m] = await Promise.all([
+      const [data, m, pay] = await Promise.all([
         listAllProfiles(),
         getMaintenance(),
+        getPaymentAccount(),
       ])
       setRows(data)
       setMaint({
@@ -35,6 +46,12 @@ export default function SuperAdminHome() {
         title: m.title || 'Maintenance',
         message: m.message || 'Sistem sedang dalam perbaikan.',
         estimated_end: m.estimated_end || '',
+      })
+      setPayAcc({
+        bank_name: pay.bank_name || '',
+        account_number: pay.account_number || '',
+        account_name: pay.account_name || '',
+        notes: pay.notes || '',
       })
     } catch (e) {
       console.error(e)
@@ -85,6 +102,16 @@ export default function SuperAdminHome() {
     } catch (e) {
       console.error(e)
       setError(e.message || 'Gagal simpan maintenance')
+    }
+  }
+
+  async function handleSavePaymentAccount() {
+    try {
+      await setPaymentAccount(payAcc)
+      setMsg('Rekening pembayaran disimpan')
+    } catch (e) {
+      console.error(e)
+      setError(e.message || 'Gagal simpan rekening')
     }
   }
 
@@ -165,6 +192,52 @@ export default function SuperAdminHome() {
 
       <section style={styles.section}>
         <div style={styles.sectionHead}>
+          <h2 style={styles.h2}>Rekening Transfer (untuk client)</h2>
+        </div>
+        <p style={{ margin: '0 0 12px', color: '#A9B0A8', fontSize: 13 }}>
+          Ditampilkan di halaman Langganan client saat bayar manual.
+        </p>
+        <label style={styles.label}>Bank</label>
+        <input
+          style={styles.input}
+          value={payAcc.bank_name}
+          onChange={(e) =>
+            setPayAcc((p) => ({ ...p, bank_name: e.target.value }))
+          }
+          placeholder="BCA / Mandiri / BRI / ..."
+        />
+        <label style={styles.label}>No. rekening</label>
+        <input
+          style={styles.input}
+          value={payAcc.account_number}
+          onChange={(e) =>
+            setPayAcc((p) => ({ ...p, account_number: e.target.value }))
+          }
+          placeholder="1234567890"
+        />
+        <label style={styles.label}>Atas nama</label>
+        <input
+          style={styles.input}
+          value={payAcc.account_name}
+          onChange={(e) =>
+            setPayAcc((p) => ({ ...p, account_name: e.target.value }))
+          }
+          placeholder="Nama pemilik rekening"
+        />
+        <label style={styles.label}>Catatan</label>
+        <textarea
+          style={{ ...styles.input, minHeight: 70, resize: 'vertical' }}
+          value={payAcc.notes}
+          onChange={(e) => setPayAcc((p) => ({ ...p, notes: e.target.value }))}
+          placeholder="Contoh: cantumkan email akun di berita transfer"
+        />
+        <button style={styles.saveBtn} onClick={handleSavePaymentAccount}>
+          Simpan Rekening
+        </button>
+      </section>
+
+      <section style={styles.section}>
+        <div style={styles.sectionHead}>
           <h2 style={styles.h2}>Semua Akun</h2>
           <span style={styles.badge}>{rows.length} akun</span>
         </div>
@@ -201,7 +274,9 @@ export default function SuperAdminHome() {
                         <select
                           value={r.role}
                           disabled={isSelf}
-                          onChange={(e) => handleRoleChange(r.id, e.target.value)}
+                          onChange={(e) =>
+                            handleRoleChange(r.id, e.target.value)
+                          }
                           style={styles.select}
                         >
                           <option value="user">user</option>
@@ -257,9 +332,20 @@ export default function SuperAdminHome() {
         </div>
         <div style={styles.card}>
           <h3 style={{ margin: '0 0 8px', color: '#C9A24B' }}>Reports</h3>
-          <p style={{ margin: 0, color: '#A9B0A8', fontSize: 14 }}>
-            Laporan (menyusul)
+          <p style={{ margin: '0 0 12px', color: '#A9B0A8', fontSize: 14 }}>
+            Ringkasan user, langganan, revenue
           </p>
+          <a
+            href="/super-admin/reports"
+            style={{
+              color: '#C9A24B',
+              fontWeight: 600,
+              textDecoration: 'none',
+              fontSize: 14,
+            }}
+          >
+            Buka Laporan →
+          </a>
         </div>
       </div>
     </div>

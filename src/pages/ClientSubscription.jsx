@@ -7,6 +7,7 @@ import {
   requestSubscription,
 } from '../lib/subscriptionService'
 import { createPayment, listMyPayments } from '../lib/paymentService'
+import { getPaymentAccount } from '../lib/paymentAccountService'
 
 function rupiah(n) {
   return 'Rp ' + Number(n || 0).toLocaleString('id-ID')
@@ -17,6 +18,7 @@ export default function ClientSubscription() {
   const [plans, setPlans] = useState([])
   const [mine, setMine] = useState(null)
   const [payments, setPayments] = useState([])
+  const [payAcc, setPayAcc] = useState(null)
   const [loading, setLoading] = useState(true)
   const [msg, setMsg] = useState('')
   const [error, setError] = useState('')
@@ -27,14 +29,16 @@ export default function ClientSubscription() {
     setLoading(true)
     setError('')
     try {
-      const [p, s, pay] = await Promise.all([
+      const [p, s, pay, acc] = await Promise.all([
         listPlans(),
         getMySubscription(user.id),
         listMyPayments(user.id),
+        getPaymentAccount(),
       ])
       setPlans(p)
       setMine(s)
       setPayments(pay)
+      setPayAcc(acc)
     } catch (e) {
       console.error(e)
       setError(e.message || 'Gagal memuat')
@@ -229,11 +233,31 @@ export default function ClientSubscription() {
         })}
       </div>
 
+      {payAcc && (payAcc.bank_name || payAcc.account_number) && (
+        <div style={{ ...styles.card, marginTop: 18 }}>
+          <h3 style={styles.h3}>Transfer ke rekening ini</h3>
+          <div style={{ fontSize: 14, lineHeight: 1.7 }}>
+            <div>
+              Bank: <b>{payAcc.bank_name || '—'}</b>
+            </div>
+            <div>
+              No. rek: <b>{payAcc.account_number || '—'}</b>
+            </div>
+            <div>
+              a/n: <b>{payAcc.account_name || '—'}</b>
+            </div>
+            {payAcc.notes ? (
+              <div style={{ ...styles.muted, marginTop: 8 }}>{payAcc.notes}</div>
+            ) : null}
+          </div>
+        </div>
+      )}
+
       <div style={{ ...styles.card, marginTop: 18 }}>
         <h3 style={styles.h3}>Kirim bukti pembayaran (manual)</h3>
         <p style={styles.muted}>
           Hanya untuk pengajuan berbayar (status pending). Transfer ke rekening
-          admin, lalu isi catatan/referensi.
+          di atas, lalu isi catatan/referensi.
         </p>
         <form onSubmit={handleSubmitPayment}>
           <label style={styles.label}>Metode</label>

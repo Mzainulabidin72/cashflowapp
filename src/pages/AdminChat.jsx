@@ -1,121 +1,177 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import {
   listConversations,
   listMessages,
   sendMessage,
+  subscribeMessages,
 } from '../lib/chatService'
 
 export default function AdminChat() {
   const { user } = useAuth()
-  const [conversations, setConversations] = useState([])
-  const [active, setActive] = useState(null)
+  const [convs, setConvs] = useState([])
+  const [selectedId, setSelectedId] = useState(null)
   const [messages, setMessages] = useState([])
   const [text, setText] = useState('')
   const [loading, setLoading] = useState(true)
+  const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
   const bottomRef = useRef(null)
 
-  async function loadConv() {
-    setLoading(true)
+  async function loadConvs() {
     try {
       const data = await listConversations()
-      setConversations(data)
+      setConvs(data)
     } catch (e) {
       console.error(e)
-      setError(e.message || 'Gagal memuat')
+      setError(e.message || 'Gagal memuat percakapan')
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => {
-    loadConv()
+    loadConvs()
   }, [])
+
+  useEffect(() => {
+    if (!selectedId) {
+      setMessages([])
+      return
+    }
+    let unsub = null
+    let cancelled = false
+
+    async function load() {
+      try {
+        const msgs = await listMessages(selectedId)
+        if (cancelled) return
+        setMessages(msgs || [])
+
+        unsub = subscribeMessages(selectedId, (row) => {
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === row.id)) return prev
+            return [
+              ...prev,
+              {
+                id: row.id,
+                conversation_id: row.conversation_id,
+                sender_id: row.sender_id,
+                message: row.message,
+                created_at: row.created_at,
+              },
+            ]
+          })
+          // refresh list urutan kiri
+          loadConvs()
+        })
+      } catch (e) {
+        console.error(e)
+        if (!cancelled) setError(e.message || 'Gagal memuat pesan')
+      }
+    }
+
+    load()
+    return () => {
+      cancelled = true
+      if (unsub) unsub()
+    }
+  }, [selectedId])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  async function openConv(c) {
-    setActive(c)
+  async function handleSend(e) {
+    e.preventDefault()
+    if (!selectedId || !text.trim() || sending) return
+    setSending(true)
+    setError('')
     try {
-      const msgs = await listMessages(c.id)
-      setMessages(msgs)
+      await sendMessage(selectedId, user.id, text)
+      setText('')
+      await loadConvs()
     } catch (e) {
       console.error(e)
-      setError(e.message)
+      setError(e.message || 'Gagal kirim')
+    } finally {
+      setSending(false)
     }
   }
 
-  async function handleSend(e) {
-    e.preventDefault()
-    if (!text.trim() || !active) return
-    try {
-      await sendMessage(active.id, user.id, text)
-      setText('')
-      const msgs = await listMessages(active.id)
-      setMessages(msgs)
-      await loadConv()
-    } catch (e) {
-      console.error(e)
-      setError(e.message)
-    }
-  }
+  const selected = convs.find((c) => c.id === selectedId)
 
   return (
     <div style={styles.wrap}>
+      <div style={{ marginBottom: 12 }}>
+        <Link to="/admin" style={styles.back}>
+          ← Kembali ke Admin
+        </Link>
+      </div>
       <h2 style={styles.title}>Chat Client</h2>
       {error && <p style={styles.err}>{error}</p>}
 
       <div style={styles.layout}>
         <div style={styles.list}>
           {loading && <p style={styles.muted}>Memuat...</p>}
-          {!loading && conversations.length === 0 && (
-            <p style={styles.muted}>Belum ada percakapan.</p>
+          {!loading && convs.length === 0 && (
+            <p style={styles.muted}>Belum ada percakapan</p>
           )}
-          {conversations.map((c) => (
-            <div
+          {convs.map((c) => (
+            <button
               key={c.id}
-              onClick={() => openConv(c)}
+              type="button"
+              onClick={() => setSelectedId(c.id)}
               style={{
-                ...styles.item,
-                borderColor: active?.id === c.id ? '#C9A24B' : '#2B3E37',
+                ...styles.convItem,
+                borderColor: selectedId === c.id ? '#C9A24B' : '#2B3E37',
+                background: selectedId === c.id ? '#243830' : '#1D2E28',
               }}
             >
               <div style={{ fontWeight: 600, fontSize: 13 }}>
-                {c.profiles?.full_name || c.profiles?.email || 'Client'}
+                {c.profile?.full_name || c.profile?.email || 'User'}
               </div>
-              <div style={styles.muted}>
+              <div style={{ fontSize: 11, color: '#A9B0A8', marginTop: 4 }}>
                 {c.last_message_at
                   ? new Date(c.last_message_at).toLocaleString('id-ID')
-                  : 'Belum ada pesan'}
+                  : '—'}
               </div>
-            </div>
+            </button>
           ))}
         </div>
 
-        <div style={styles.chat}>
-          {!active ? (
-            <p style={styles.muted}>Pilih percakapan di kiri.</p>
+        <div style={styles.chatPane}>
+          {!selectedId ? (
+            <p style={{ ...styles.muted, padding: 16 }}>
+              Pilih percakapan di kiri
+            </p>
           ) : (
             <>
-              <div style={styles.box}>
+              <div style={styles.chatHead}>
+                {selected?.profile?.full_name ||
+                  selected?.profile?.email ||
+                  'Client'}
+              </div>
+              <div style={styles.messages}>
                 {messages.map((m) => {
-                  const mine = m.sender_id === user.id
+                  const mine = m.sender_id === user?.id
                   return (
                     <div
                       key={m.id}
                       style={{
                         ...styles.bubble,
                         alignSelf: mine ? 'flex-end' : 'flex-start',
-                        background: mine ? '#C9A24B' : '#2B3E37',
+                        background: mine ? '#C9A24B' : '#16231F',
                         color: mine ? '#1B160A' : '#EDEAE0',
+                        border: mine ? 'none' : '1px solid #2B3E37',
                       }}
                     >
-                      {m.message}
-                      <div style={styles.time}>
-                        {new Date(m.created_at).toLocaleString('id-ID')}
+                      <div style={{ fontSize: 14 }}>{m.message}</div>
+                      <div style={{ fontSize: 11, marginTop: 4, opacity: 0.7 }}>
+                        {m.created_at
+                          ? new Date(m.created_at).toLocaleString('id-ID')
+                          : ''}
                       </div>
                     </div>
                   )
@@ -127,9 +183,14 @@ export default function AdminChat() {
                   style={styles.input}
                   value={text}
                   onChange={(e) => setText(e.target.value)}
-                  placeholder="Balas pesan..."
+                  placeholder="Balas client..."
+                  disabled={sending}
                 />
-                <button style={styles.btn} disabled={!text.trim()}>
+                <button
+                  style={styles.btn}
+                  type="submit"
+                  disabled={sending || !text.trim()}
+                >
                   Kirim
                 </button>
               </form>
@@ -142,62 +203,83 @@ export default function AdminChat() {
 }
 
 const styles = {
-  wrap: { color: '#EDEAE0' },
+  wrap: {
+    minHeight: '100vh',
+    background: '#16231F',
+    color: '#EDEAE0',
+    padding: 20,
+  },
+  back: {
+    color: '#C9A24B',
+    textDecoration: 'none',
+    fontSize: 13,
+    fontWeight: 600,
+  },
   title: {
     fontFamily: 'Georgia, serif',
-    fontSize: 20,
+    fontSize: 22,
     color: '#C9A24B',
     margin: '0 0 14px',
   },
+  muted: { color: '#A9B0A8', fontSize: 13 },
   err: { color: '#C4735A', fontSize: 13 },
-  muted: { color: '#A9B0A8', fontSize: 12 },
   layout: {
     display: 'grid',
     gridTemplateColumns: 'minmax(200px, 280px) 1fr',
     gap: 12,
-    minHeight: 400,
+    minHeight: 'calc(100vh - 120px)',
   },
   list: {
-    background: '#1D2E28',
+    background: '#1A2924',
     border: '1px solid #2B3E37',
     borderRadius: 12,
     padding: 10,
-    maxHeight: 480,
-    overflowY: 'auto',
-  },
-  item: {
-    border: '1px solid #2B3E37',
-    borderRadius: 8,
-    padding: 10,
-    marginBottom: 8,
-    cursor: 'pointer',
-  },
-  chat: {
-    background: '#1D2E28',
-    border: '1px solid #2B3E37',
-    borderRadius: 12,
-    padding: 12,
-    display: 'flex',
-    flexDirection: 'column',
-  },
-  box: {
-    flex: 1,
-    minHeight: 280,
-    maxHeight: 380,
     overflowY: 'auto',
     display: 'flex',
     flexDirection: 'column',
     gap: 8,
-    marginBottom: 10,
+  },
+  convItem: {
+    textAlign: 'left',
+    border: '1px solid #2B3E37',
+    borderRadius: 8,
+    padding: 10,
+    color: '#EDEAE0',
+    cursor: 'pointer',
+  },
+  chatPane: {
+    background: '#1A2924',
+    border: '1px solid #2B3E37',
+    borderRadius: 12,
+    display: 'flex',
+    flexDirection: 'column',
+    minHeight: 400,
+  },
+  chatHead: {
+    padding: '12px 14px',
+    borderBottom: '1px solid #2B3E37',
+    fontWeight: 600,
+    color: '#C9A24B',
+  },
+  messages: {
+    flex: 1,
+    overflowY: 'auto',
+    padding: 14,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8,
   },
   bubble: {
-    maxWidth: '80%',
+    maxWidth: '75%',
     padding: '10px 12px',
     borderRadius: 12,
-    fontSize: 14,
   },
-  time: { fontSize: 10, opacity: 0.7, marginTop: 4 },
-  form: { display: 'flex', gap: 8 },
+  form: {
+    display: 'flex',
+    gap: 8,
+    padding: 12,
+    borderTop: '1px solid #2B3E37',
+  },
   input: {
     flex: 1,
     padding: '10px 12px',
@@ -205,13 +287,14 @@ const styles = {
     border: '1px solid #2B3E37',
     background: '#16231F',
     color: '#EDEAE0',
+    fontSize: 14,
   },
   btn: {
     background: '#C9A24B',
     color: '#1B160A',
     border: 'none',
     borderRadius: 8,
-    padding: '0 16px',
+    padding: '10px 16px',
     fontWeight: 600,
     cursor: 'pointer',
   },
