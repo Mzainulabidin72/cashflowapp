@@ -1,31 +1,46 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { listClients } from '../lib/adminService'
+import { getAdminBadges } from '../lib/adminStatsService'
+import { supabase } from '../lib/supabase'
 
 export default function AdminHome() {
   const { profile, signOut } = useAuth()
+  const [badges, setBadges] = useState({
+    conversations: 0,
+    openComplaints: 0,
+    pendingPayments: 0,
+    pendingSubscriptions: 0,
+  })
   const [clients, setClients] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   useEffect(() => {
     let cancelled = false
-
     async function load() {
       setLoading(true)
-      setError('')
       try {
-        const data = await listClients()
-        if (!cancelled) setClients(data)
+        const [b, profilesRes] = await Promise.all([
+          getAdminBadges(),
+          supabase
+            .from('profiles')
+            .select('id, full_name, email, role, status, created_at')
+            .eq('role', 'user')
+            .order('created_at', { ascending: false })
+            .limit(20),
+        ])
+        if (cancelled) return
+        setBadges(b)
+        if (profilesRes.error) throw profilesRes.error
+        setClients(profilesRes.data || [])
       } catch (e) {
         console.error(e)
-        if (!cancelled) setError(e.message || 'Gagal memuat client')
+        if (!cancelled) setError(e.message || 'Gagal memuat')
       } finally {
         if (!cancelled) setLoading(false)
       }
     }
-
     load()
     return () => {
       cancelled = true
@@ -43,29 +58,55 @@ export default function AdminHome() {
         <div>
           <h1 style={styles.title}>Admin Panel</h1>
           <p style={styles.sub}>
-            {profile?.full_name || profile?.email} · role: <b>admin</b>
+            {profile?.full_name || profile?.email} · {profile?.role}
           </p>
         </div>
-        <button style={styles.btn} onClick={handleLogout}>
+        <button style={styles.logout} onClick={handleLogout}>
           Logout
         </button>
       </header>
 
+      {error && <p style={styles.err}>{error}</p>}
+      {loading && <p style={styles.muted}>Memuat...</p>}
+
+      <div style={styles.grid}>
+        <Card
+          title="Chat Client"
+          desc="Balas pesan client"
+          to="/admin/chat"
+          badge={badges.conversations}
+          badgeLabel="percakapan"
+        />
+        <Card
+          title="Keluhan"
+          desc="Tangani keluhan client"
+          to="/admin/complaints"
+          badge={badges.openComplaints}
+          badgeLabel="open / progress"
+        />
+        <Card
+          title="Langganan"
+          desc="Aktifkan / kelola subscription"
+          to="/admin/subscriptions"
+          badge={badges.pendingSubscriptions}
+          badgeLabel="pending"
+        />
+        <Card
+          title="Pembayaran"
+          desc="Konfirmasi bukti transfer"
+          to="/admin/payments"
+          badge={badges.pendingPayments}
+          badgeLabel="menunggu"
+        />
+      </div>
+
       <section style={styles.section}>
-        <div style={styles.sectionHead}>
-          <h2 style={styles.h2}>Daftar Client</h2>
-          <span style={styles.badge}>{clients.length} client</span>
-        </div>
-
-        {loading && <p style={styles.muted}>Memuat...</p>}
-        {error && <p style={styles.err}>{error}</p>}
-
-        {!loading && !error && clients.length === 0 && (
-          <p style={styles.muted}>Belum ada client terdaftar.</p>
+        <h2 style={styles.h2}>Client terbaru</h2>
+        {clients.length === 0 && !loading && (
+          <p style={styles.muted}>Belum ada client.</p>
         )}
-
-        {!loading && clients.length > 0 && (
-          <div style={styles.tableWrap}>
+        {clients.length > 0 && (
+          <div style={{ overflowX: 'auto' }}>
             <table style={styles.table}>
               <thead>
                 <tr>
@@ -80,20 +121,7 @@ export default function AdminHome() {
                   <tr key={c.id}>
                     <td style={styles.td}>{c.full_name || '—'}</td>
                     <td style={styles.td}>{c.email || '—'}</td>
-                    <td style={styles.td}>
-                      <span
-                        style={{
-                          ...styles.status,
-                          background:
-                            c.status === 'active'
-                              ? 'rgba(127,163,127,0.2)'
-                              : 'rgba(196,115,90,0.2)',
-                          color: c.status === 'active' ? '#7FA37F' : '#C4735A',
-                        }}
-                      >
-                        {c.status || 'active'}
-                      </span>
-                    </td>
+                    <td style={styles.td}>{c.status || 'active'}</td>
                     <td style={styles.td}>
                       {c.created_at
                         ? new Date(c.created_at).toLocaleDateString('id-ID')
@@ -106,49 +134,30 @@ export default function AdminHome() {
           </div>
         )}
       </section>
-
-      <div style={styles.grid}>
-        <div style={styles.card}>
-          <h3 style={{ margin: '0 0 8px', color: '#C9A24B' }}>Chat</h3>
-          <p style={{ margin: '0 0 12px', color: '#A9B0A8', fontSize: 14 }}>
-            Balas chat dari client
-          </p>
-          <Link to="/admin/chat" style={styles.link}>
-            Buka Chat →
-          </Link>
-        </div>
-
-        <div style={styles.card}>
-          <h3 style={{ margin: '0 0 8px', color: '#C9A24B' }}>Complaints</h3>
-          <p style={{ margin: '0 0 12px', color: '#A9B0A8', fontSize: 14 }}>
-            Keluhan client
-          </p>
-          <Link to="/admin/complaints" style={styles.link}>
-            Buka Keluhan →
-          </Link>
-        </div>
-
-        <div style={styles.card}>
-          <h3 style={{ margin: '0 0 8px', color: '#C9A24B' }}>Subscriptions</h3>
-          <p style={{ margin: '0 0 12px', color: '#A9B0A8', fontSize: 14 }}>
-            Langganan client
-          </p>
-          <Link to="/admin/subscriptions" style={styles.link}>
-            Buka Langganan →
-          </Link>
-        </div>
-
-        <div style={styles.card}>
-          <h3 style={{ margin: '0 0 8px', color: '#C9A24B' }}>Payments</h3>
-          <p style={{ margin: '0 0 12px', color: '#A9B0A8', fontSize: 14 }}>
-            Konfirmasi pembayaran client
-          </p>
-          <Link to="/admin/payments" style={styles.link}>
-            Buka Pembayaran →
-          </Link>
-        </div>
-      </div>
     </div>
+  )
+}
+
+function Card({ title, desc, to, badge, badgeLabel }) {
+  const show = Number(badge) > 0
+  return (
+    <Link to={to} style={styles.card}>
+      <div style={styles.cardTop}>
+        <h3 style={styles.cardTitle}>{title}</h3>
+        {show && (
+          <span style={styles.badge} title={badgeLabel}>
+            {badge}
+          </span>
+        )}
+      </div>
+      <p style={styles.cardDesc}>{desc}</p>
+      {show && (
+        <p style={styles.badgeHint}>
+          {badge} {badgeLabel}
+        </p>
+      )}
+      <span style={styles.link}>Buka →</span>
+    </Link>
   )
 }
 
@@ -163,7 +172,7 @@ const styles = {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 28,
+    marginBottom: 20,
     flexWrap: 'wrap',
     gap: 12,
   },
@@ -174,7 +183,7 @@ const styles = {
     color: '#C9A24B',
   },
   sub: { margin: '6px 0 0', color: '#A9B0A8', fontSize: 13 },
-  btn: {
+  logout: {
     background: 'transparent',
     border: '1px solid #C4735A',
     color: '#C4735A',
@@ -182,31 +191,71 @@ const styles = {
     borderRadius: 8,
     cursor: 'pointer',
   },
+  muted: { color: '#A9B0A8', fontSize: 13 },
+  err: { color: '#C4735A', fontSize: 13 },
+  grid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+    gap: 14,
+    marginBottom: 24,
+  },
+  card: {
+    background: '#1D2E28',
+    border: '1px solid #2B3E37',
+    borderRadius: 12,
+    padding: 16,
+    textDecoration: 'none',
+    color: '#EDEAE0',
+    display: 'block',
+  },
+  cardTop: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  cardTitle: {
+    margin: 0,
+    color: '#C9A24B',
+    fontSize: 16,
+  },
+  badge: {
+    minWidth: 22,
+    height: 22,
+    borderRadius: 999,
+    background: '#C4735A',
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 700,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '0 6px',
+  },
+  cardDesc: {
+    margin: '8px 0 0',
+    color: '#A9B0A8',
+    fontSize: 13,
+  },
+  badgeHint: {
+    margin: '8px 0 0',
+    fontSize: 12,
+    color: '#C9A24B',
+  },
+  link: {
+    display: 'inline-block',
+    marginTop: 12,
+    color: '#C9A24B',
+    fontWeight: 600,
+    fontSize: 13,
+  },
   section: {
     background: '#1D2E28',
     border: '1px solid #2B3E37',
     borderRadius: 12,
-    padding: 18,
-    marginBottom: 20,
+    padding: 16,
   },
-  sectionHead: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 14,
-    gap: 10,
-  },
-  h2: { margin: 0, fontSize: 18, color: '#EDEAE0' },
-  badge: {
-    fontSize: 12,
-    background: 'rgba(201,162,75,0.15)',
-    color: '#C9A24B',
-    padding: '4px 10px',
-    borderRadius: 999,
-  },
-  muted: { color: '#A9B0A8', fontSize: 14 },
-  err: { color: '#C4735A', fontSize: 14 },
-  tableWrap: { overflowX: 'auto' },
+  h2: { margin: '0 0 12px', fontSize: 16 },
   table: {
     width: '100%',
     borderCollapse: 'collapse',
@@ -215,33 +264,12 @@ const styles = {
   },
   th: {
     textAlign: 'left',
-    padding: '10px 8px',
+    padding: '8px 6px',
     borderBottom: '1px solid #2B3E37',
     color: '#A9B0A8',
-    fontWeight: 600,
   },
-  td: { padding: '10px 8px', borderBottom: '1px solid #2B3E37' },
-  status: {
-    fontSize: 11,
-    padding: '3px 8px',
-    borderRadius: 999,
-    textTransform: 'capitalize',
-  },
-  grid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-    gap: 14,
-  },
-  card: {
-    background: '#1D2E28',
-    border: '1px solid #2B3E37',
-    borderRadius: 12,
-    padding: 18,
-  },
-  link: {
-    color: '#C9A24B',
-    textDecoration: 'none',
-    fontWeight: 600,
-    fontSize: 14,
+  td: {
+    padding: '8px 6px',
+    borderBottom: '1px solid #2B3E37',
   },
 }

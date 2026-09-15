@@ -2,7 +2,7 @@ import { supabase } from './supabase'
 
 /** User: ambil / buat 1 percakapan milik sendiri */
 export async function getOrCreateMyConversation(userId) {
-  // Ambil 1 saja (kalau ada duplikat)
+  // limit 1 — hindari error "multiple rows" jika ada duplikat
   const { data: rows, error: e1 } = await supabase
     .from('chat_conversations')
     .select('*')

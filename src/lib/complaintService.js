@@ -22,14 +22,12 @@ export async function listAllComplaints() {
 
   const userIds = [...new Set(data.map((c) => c.user_id).filter(Boolean))]
   let profileMap = {}
-
   if (userIds.length) {
-    const { data: profiles, error: pErr } = await supabase
+    const { data: profiles, error: pe } = await supabase
       .from('profiles')
       .select('id, full_name, email')
       .in('id', userIds)
-
-    if (pErr) throw pErr
+    if (pe) throw pe
     ;(profiles || []).forEach((p) => {
       profileMap[p.id] = p
     })
@@ -42,11 +40,14 @@ export async function listAllComplaints() {
 }
 
 export async function createComplaint(userId, subject) {
+  const text = String(subject || '').trim()
+  if (!text) throw new Error('Subjek kosong')
+
   const { data, error } = await supabase
     .from('complaints')
     .insert({
       user_id: userId,
-      subject: subject.trim(),
+      subject: text,
       status: 'OPEN',
     })
     .select()
@@ -77,23 +78,44 @@ export async function listComplaintMessages(complaintId) {
 }
 
 export async function sendComplaintMessage(complaintId, senderId, message) {
+  const text = String(message || '').trim()
+  if (!text) throw new Error('Pesan kosong')
+
   const { data, error } = await supabase
     .from('complaint_messages')
     .insert({
       complaint_id: complaintId,
       sender_id: senderId,
-      message: message.trim(),
-      is_internal: false,
+      message: text,
     })
     .select()
     .single()
 
   if (error) throw error
-
-  await supabase
-    .from('complaints')
-    .update({ updated_at: new Date().toISOString() })
-    .eq('id', complaintId)
-
   return data
+}
+
+/** Realtime pesan keluhan */
+export function subscribeComplaintMessages(complaintId, onInsert) {
+  const channel = supabase
+    .channel(`complaint-messages-${complaintId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'complaint_messages',
+        filter: `complaint_id=eq.${complaintId}`,
+      },
+      (payload) => {
+        if (payload?.new && typeof onInsert === 'function') {
+          onInsert(payload.new)
+        }
+      }
+    )
+    .subscribe()
+
+  return () => {
+    supabase.removeChannel(channel)
+  }
 }

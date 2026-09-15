@@ -22,6 +22,7 @@ import {
   saveSaldoAwal,
 } from "./lib/dataService";
 import SubscriptionBanner from "./components/SubscriptionBanner";
+import BudgetPanel from "./components/BudgetPanel";
 import { getUserPlanInfo, countTxThisMonth } from "./lib/planAccess";
 import { exportTransactionsCsv, exportSummaryCsv } from "./lib/exportCsv";
 import { exportElementAsPng } from "./lib/exportImage";
@@ -1502,7 +1503,10 @@ export default function App() {
       <main style={{ flex: 1, padding: 22, paddingBottom: 70, maxWidth: 1180, margin: "0 auto", width: "100%" }}>
         <SubscriptionBanner transactions={transactions} />
         {tab === "dashboard" && (
-          <Dashboard transactions={transactions} categories={categories} saldoAwal={saldoAwal} />
+          <>
+            <BudgetPanel transactions={transactions} onToast={showToast} />
+            <Dashboard transactions={transactions} categories={categories} saldoAwal={saldoAwal} />
+          </>
         )}
         {tab === "transactions" && (
           <TransactionsPage
