@@ -8,6 +8,7 @@ import {
 } from '../lib/subscriptionService'
 import { createPayment, listMyPayments } from '../lib/paymentService'
 import { getPaymentAccount } from '../lib/paymentAccountService'
+import { openMidtransPay } from '../lib/midtransService'
 
 function rupiah(n) {
   return 'Rp ' + Number(n || 0).toLocaleString('id-ID')
@@ -24,6 +25,7 @@ export default function ClientSubscription() {
   const [error, setError] = useState('')
   const [refNote, setRefNote] = useState('')
   const [method, setMethod] = useState('Transfer Bank')
+  const [paying, setPaying] = useState(false)
 
   async function load() {
     setLoading(true)
@@ -57,13 +59,42 @@ export default function ClientSubscription() {
     setError('')
     try {
       await requestSubscription(user.id, planId)
-      setMsg(
-        'Permintaan langganan dikirim. Silakan transfer lalu kirim bukti di bawah.'
-      )
+      setMsg('Permintaan langganan dikirim. Bayar via Midtrans atau transfer manual.')
       await load()
     } catch (e) {
       console.error(e)
       setError(e.message || 'Gagal mengajukan langganan')
+    }
+  }
+
+  async function handleMidtrans() {
+    if (!mine || mine.status !== 'pending') {
+      setError('Ajukan paket berbayar dulu (status pending)')
+      return
+    }
+    setPaying(true)
+    setError('')
+    setMsg('')
+    try {
+      const result = await openMidtransPay({
+        subscriptionId: mine.id,
+        planId: mine.plan_id,
+      })
+      if (result.ok) {
+        setMsg('Pembayaran berhasil. Status akan aktif setelah konfirmasi Midtrans.')
+      } else if (result.pending) {
+        setMsg('Pembayaran pending. Selesaikan di aplikasi bank/e-wallet.')
+      } else if (result.closed) {
+        setMsg('Popup ditutup. Kamu bisa bayar lagi kapan saja.')
+      } else {
+        setError('Pembayaran gagal / dibatalkan')
+      }
+      await load()
+    } catch (e) {
+      console.error(e)
+      setError(e.message || 'Gagal membuka Midtrans')
+    } finally {
+      setPaying(false)
     }
   }
 
@@ -104,9 +135,7 @@ export default function ClientSubscription() {
       return 'Paket default (Gratis)'
     }
     if (!mine) return 'Ajukan langganan'
-
     const isThis = mine.plan_id === plan.id
-
     if (mine.status === 'active' && isThis) return '✓ Paket aktif'
     if (mine.status === 'active' && !isThis) return 'Ganti ke paket ini'
     if (mine.status === 'pending' && isThis) return 'Menunggu konfirmasi'
@@ -143,33 +172,29 @@ export default function ClientSubscription() {
                 Status: <b style={{ color: '#7FA37F' }}>active</b>
               </div>
               <div style={{ marginTop: 4 }}>
-                Paket aktif:{' '}
-                <b style={{ color: '#C9A24B' }}>{activePlanName}</b>
+                Paket aktif: <b style={{ color: '#C9A24B' }}>{activePlanName}</b>
               </div>
-              {mine.starts_at && (
-                <div style={styles.muted}>
-                  Mulai: {new Date(mine.starts_at).toLocaleDateString('id-ID')}
-                </div>
-              )}
-              {mine.ends_at && (
-                <div style={styles.muted}>
-                  Berakhir: {new Date(mine.ends_at).toLocaleDateString('id-ID')}
-                </div>
-              )}
             </div>
           ) : mine?.status === 'pending' ? (
             <div style={{ fontSize: 14 }}>
               <div>
-                Status: <b>pending</b> (menunggu bayar/konfirmasi)
+                Status: <b>pending</b>
               </div>
               <div style={styles.muted}>
-                Paket diajukan:{' '}
+                Paket:{' '}
                 <b>
                   {mine.plan?.name ||
                     plans.find((p) => p.id === mine.plan_id)?.name ||
                     '—'}
                 </b>
               </div>
+              <button
+                style={{ ...styles.btn, marginTop: 12, width: 'auto' }}
+                onClick={handleMidtrans}
+                disabled={paying}
+              >
+                {paying ? 'Membuka Midtrans...' : 'Bayar online (Midtrans)'}
+              </button>
             </div>
           ) : (
             <div style={{ fontSize: 14 }}>
@@ -177,7 +202,7 @@ export default function ClientSubscription() {
                 Paket aktif: <b>Gratis</b>
               </div>
               <div style={styles.muted}>
-                Batas 200 transaksi per bulan. Upgrade untuk unlimited.
+                Batas 200 transaksi / bulan. Upgrade untuk unlimited.
               </div>
             </div>
           )}
@@ -191,7 +216,6 @@ export default function ClientSubscription() {
             mine?.status === 'active' && mine?.plan_id === p.id
           const isFreeDefault =
             Number(p.price) === 0 && mine?.status !== 'active'
-
           return (
             <div
               key={p.id}
@@ -199,29 +223,17 @@ export default function ClientSubscription() {
                 ...styles.plan,
                 borderColor:
                   isThisActive || isFreeDefault ? '#C9A24B' : '#2B3E37',
-                boxShadow: isThisActive
-                  ? '0 0 0 1px rgba(201,162,75,0.4)'
-                  : 'none',
               }}
             >
-              {isThisActive && (
-                <div style={styles.badgeActive}>● SEDANG AKTIF</div>
-              )}
               <div style={styles.planName}>{p.name}</div>
               <div style={styles.planDesc}>{p.description}</div>
               <div style={styles.planPrice}>
                 {Number(p.price) === 0 ? 'Gratis' : rupiah(p.price)}
               </div>
-              <div style={{ ...styles.muted, marginBottom: 12 }}>
-                {Number(p.price) === 0
-                  ? '200 transaksi / bulan'
-                  : `${p.duration_days} hari`}
-              </div>
               <button
                 style={{
                   ...styles.btn,
                   opacity: planButtonDisabled(p) ? 0.65 : 1,
-                  background: isThisActive ? '#7FA37F' : '#C9A24B',
                 }}
                 onClick={() => handleRequest(p.id, p.price)}
                 disabled={planButtonDisabled(p)}
@@ -235,7 +247,7 @@ export default function ClientSubscription() {
 
       {payAcc && (payAcc.bank_name || payAcc.account_number) && (
         <div style={{ ...styles.card, marginTop: 18 }}>
-          <h3 style={styles.h3}>Transfer ke rekening ini</h3>
+          <h3 style={styles.h3}>Atau transfer manual</h3>
           <div style={{ fontSize: 14, lineHeight: 1.7 }}>
             <div>
               Bank: <b>{payAcc.bank_name || '—'}</b>
@@ -254,31 +266,24 @@ export default function ClientSubscription() {
       )}
 
       <div style={{ ...styles.card, marginTop: 18 }}>
-        <h3 style={styles.h3}>Kirim bukti pembayaran (manual)</h3>
-        <p style={styles.muted}>
-          Hanya untuk pengajuan berbayar (status pending). Transfer ke rekening
-          di atas, lalu isi catatan/referensi.
-        </p>
+        <h3 style={styles.h3}>Kirim bukti (manual)</h3>
         <form onSubmit={handleSubmitPayment}>
           <label style={styles.label}>Metode</label>
           <input
             style={styles.input}
             value={method}
             onChange={(e) => setMethod(e.target.value)}
-            placeholder="Transfer Bank / E-Wallet"
           />
           <label style={styles.label}>Catatan / No. referensi</label>
           <input
             style={styles.input}
             value={refNote}
             onChange={(e) => setRefNote(e.target.value)}
-            placeholder="Contoh: TRX123 dari BCA a/n Budi"
           />
           <button style={{ ...styles.btn, marginTop: 12 }} type="submit">
             Kirim bukti
           </button>
         </form>
-
         {payments.length > 0 && (
           <div style={{ marginTop: 16 }}>
             <h4 style={{ margin: '0 0 8px', fontSize: 14 }}>Riwayat bayar</h4>
@@ -288,9 +293,7 @@ export default function ClientSubscription() {
                 style={{ fontSize: 13, marginBottom: 6, color: '#A9B0A8' }}
               >
                 {rupiah(p.amount)} · {p.status} · {p.payment_method || '-'} ·{' '}
-                {p.created_at
-                  ? new Date(p.created_at).toLocaleString('id-ID')
-                  : ''}
+                {p.provider || 'manual'}
               </div>
             ))}
           </div>
@@ -337,31 +340,16 @@ const styles = {
     padding: 16,
     display: 'flex',
     flexDirection: 'column',
-    minHeight: 280,
+    minHeight: 220,
   },
-  badgeActive: {
-    fontSize: 11,
-    color: '#C9A24B',
-    fontWeight: 700,
-    marginBottom: 6,
-  },
-  planName: {
-    color: '#C9A24B',
-    fontWeight: 700,
-    fontSize: 16,
-  },
+  planName: { color: '#C9A24B', fontWeight: 700, fontSize: 16 },
   planDesc: {
     fontSize: 13,
     color: '#A9B0A8',
     margin: '8px 0',
     flex: 1,
-    lineHeight: 1.45,
   },
-  planPrice: {
-    fontSize: 18,
-    fontWeight: 700,
-    marginBottom: 6,
-  },
+  planPrice: { fontSize: 18, fontWeight: 700, marginBottom: 10 },
   btn: {
     marginTop: 'auto',
     width: '100%',
