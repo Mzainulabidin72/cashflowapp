@@ -1,157 +1,208 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
+import { supabase } from '../lib/supabase'
+import '../styles/design-tokens.css'
+import '../styles/auth-layout.css'
+
+function BrandLogo({ size = 48 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 48 48"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <defs>
+        <linearGradient id="lanilaGrad" x1="8" y1="4" x2="40" y2="44" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#6366F1" />
+          <stop offset="0.55" stopColor="#8B5CF6" />
+          <stop offset="1" stopColor="#C9A24B" />
+        </linearGradient>
+      </defs>
+      <path
+        d="M14 8c0-1.1.9-2 2-2h6c1.1 0 2 .9 2 2v20.5c0 .3.1.6.3.8l7.4 7.4c.8.8.2 2.1-.9 2.1H16c-1.1 0-2-.9-2-2V8z"
+        fill="url(#lanilaGrad)"
+      />
+      <path
+        d="M28 28.5c4.5-1 9.2.4 12.2 3.8 1 .1.6 2.2-.6 2.2-4.2 0-8.1-1.8-10.6-4.8-.5-.6-.3-1.2-.1-1.2z"
+        fill="url(#lanilaGrad)"
+        opacity="0.9"
+      />
+    </svg>
+  )
+}
+
+function isValidEmail(v) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v).trim())
+}
 
 export default function Login() {
-  const { signIn } = useAuth()
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
+  const [showPw, setShowPw] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [fieldErr, setFieldErr] = useState({ email: '', password: '' })
+
+  function validate() {
+    const next = { email: '', password: '' }
+    if (!email.trim()) next.email = 'Email wajib diisi.'
+    else if (!isValidEmail(email)) next.email = 'Format email tidak valid.'
+    if (!password) next.password = 'Kata sandi wajib diisi.'
+    setFieldErr(next)
+    return !next.email && !next.password
+  }
 
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
+    if (!validate()) return
+
     setLoading(true)
-
-    const { error } = await signIn({ email, password })
-    setLoading(false)
-
-    if (error) {
-      setError(
-        error.message === 'Invalid login credentials'
-          ? 'Email atau password salah.'
-          : error.message
-      )
-      return
+    try {
+      const { error: err } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      })
+      if (err) {
+        const msg = /invalid|credentials|password|email/i.test(err.message)
+          ? 'Email atau kata sandi yang Anda masukkan salah.'
+          : err.message
+        setError(msg)
+        return
+      }
+      navigate('/')
+    } catch (e) {
+      console.error(e)
+      setError(e.message || 'Gagal masuk. Coba lagi.')
+    } finally {
+      setLoading(false)
     }
-
-    // Redirect sesuai role dijalankan di route "/"
-    navigate('/')
   }
 
   return (
-    <div style={styles.wrapper}>
-      <form onSubmit={handleSubmit} style={styles.card}>
-        <h1 style={styles.title}>CashFlow</h1>
-        <p style={styles.subtitle}>Masuk ke akun kamu</p>
+    <div className="auth-page" data-theme="cashflow">
+      <aside className="auth-brand" aria-label="Branding">
+        <div className="auth-brand-inner">
+          <div className="auth-logo-row">
+            <BrandLogo size={48} />
+            <div className="auth-logo-text">
+              <span className="auth-logo-name">Lanila</span>
+              <span className="auth-logo-product">Cash Flow / Buku Kas</span>
+            </div>
+          </div>
 
-        {error && <div style={styles.error}>{error}</div>}
+          <h2 className="auth-tagline">
+            Kelola keuangan dengan lebih mudah dan teratur.
+          </h2>
+          <p className="auth-desc">
+            Better tools · brighter days — catat, pantau, dan rencanakan cash flow
+            dalam satu tempat.
+          </p>
 
-        <label style={styles.label}>Email</label>
-        <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-          style={styles.input}
-          placeholder="email@contoh.com"
-        />
+          <ul className="auth-benefits">
+            <li>
+              <span className="check" aria-hidden="true">✓</span>
+              Catat pemasukan &amp; pengeluaran harian
+            </li>
+            <li>
+              <span className="check" aria-hidden="true">✓</span>
+              Pantau cash flow dan ringkasan bulanan
+            </li>
+            <li>
+              <span className="check" aria-hidden="true">✓</span>
+              Langganan, chat support, dan tools Pro
+            </li>
+          </ul>
+        </div>
+      </aside>
 
-        <label style={styles.label}>Password</label>
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          minLength={6}
-          style={styles.input}
-          placeholder="Minimal 6 karakter"
-        />
+      <main className="auth-panel">
+        <div className="auth-card">
+          <div className="auth-mobile-brand">
+            <BrandLogo size={36} />
+            <div className="auth-logo-text">
+              <span className="auth-logo-name" style={{ fontSize: 16 }}>Lanila</span>
+              <span className="auth-logo-product">Cash Flow</span>
+            </div>
+          </div>
 
-        <button type="submit" disabled={loading} style={styles.button}>
-          {loading ? 'Memproses...' : 'Masuk'}
-        </button>
+          <h1>Masuk</h1>
+          <p className="welcome">Selamat datang kembali. Silakan masuk ke akun Anda.</p>
 
-        <p style={styles.footer}>
-          Belum punya akun?{' '}
-          <Link to="/register" style={styles.link}>
-            Daftar
-          </Link>
-        </p>
-      </form>
+          {error && (
+            <div className="ds-alert ds-alert-error" role="alert">
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} noValidate>
+            <div className="ds-field">
+              <label className="ds-label" htmlFor="login-email">Email</label>
+              <input
+                id="login-email"
+                className="ds-input"
+                type="email"
+                autoComplete="email"
+                placeholder="nama@email.com"
+                value={email}
+                disabled={loading}
+                aria-invalid={!!fieldErr.email}
+                onChange={(e) => {
+                  setEmail(e.target.value)
+                  if (fieldErr.email) setFieldErr((f) => ({ ...f, email: '' }))
+                }}
+              />
+              {fieldErr.email && <p className="ds-field-error">{fieldErr.email}</p>}
+            </div>
+
+            <div className="ds-field">
+              <label className="ds-label" htmlFor="login-password">Kata sandi</label>
+              <div className="ds-input-wrap">
+                <input
+                  id="login-password"
+                  className="ds-input"
+                  type={showPw ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  placeholder="Masukkan kata sandi"
+                  value={password}
+                  disabled={loading}
+                  aria-invalid={!!fieldErr.password}
+                  onChange={(e) => {
+                    setPassword(e.target.value)
+                    if (fieldErr.password) setFieldErr((f) => ({ ...f, password: '' }))
+                  }}
+                />
+                <button
+                  type="button"
+                  className="ds-icon-btn"
+                  onClick={() => setShowPw((v) => !v)}
+                  aria-label={showPw ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
+                >
+                  {showPw ? '🙈' : '👁'}
+                </button>
+              </div>
+              {fieldErr.password && <p className="ds-field-error">{fieldErr.password}</p>}
+            </div>
+
+            <div className="ds-row-between">
+              <Link to="/forgot-password" className="ds-link">Lupa kata sandi?</Link>
+            </div>
+
+            <button className="ds-btn" type="submit" disabled={loading}>
+              {loading ? 'Memproses...' : 'Masuk'}
+            </button>
+          </form>
+
+          <p className="auth-footer">
+            Belum punya akun?{' '}
+            <Link to="/register" className="ds-link">Daftar</Link>
+          </p>
+        </div>
+      </main>
     </div>
   )
-}
-
-const styles = {
-  wrapper: {
-    minHeight: '100vh',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    background: '#16231F',
-    padding: 16,
-  },
-  card: {
-    width: '100%',
-    maxWidth: 380,
-    background: '#1D2E28',
-    border: '1px solid #2B3E37',
-    borderRadius: 12,
-    padding: 28,
-  },
-  title: {
-    fontFamily: 'Georgia, serif',
-    fontSize: 28,
-    color: '#C9A24B',
-    margin: '0 0 4px',
-    textAlign: 'center',
-  },
-  subtitle: {
-    color: '#A9B0A8',
-    fontSize: 14,
-    textAlign: 'center',
-    marginBottom: 24,
-  },
-  label: {
-    display: 'block',
-    fontSize: 12,
-    color: '#A9B0A8',
-    marginBottom: 4,
-    marginTop: 12,
-  },
-  input: {
-    width: '100%',
-    padding: '10px 12px',
-    borderRadius: 8,
-    border: '1px solid #2B3E37',
-    background: '#16231F',
-    color: '#EDEAE0',
-    fontSize: 15,
-    outline: 'none',
-    boxSizing: 'border-box',
-  },
-  button: {
-    width: '100%',
-    marginTop: 20,
-    padding: '12px',
-    borderRadius: 8,
-    border: 'none',
-    background: '#C9A24B',
-    color: '#1B160A',
-    fontWeight: 600,
-    fontSize: 15,
-    cursor: 'pointer',
-  },
-  error: {
-    background: 'rgba(196,115,90,0.15)',
-    color: '#C4735A',
-    padding: '10px 12px',
-    borderRadius: 8,
-    fontSize: 13,
-    marginBottom: 8,
-  },
-  footer: {
-    textAlign: 'center',
-    marginTop: 18,
-    fontSize: 13,
-    color: '#A9B0A8',
-  },
-  link: {
-    color: '#C9A24B',
-    textDecoration: 'none',
-    fontWeight: 600,
-  },
 }

@@ -1,0 +1,101 @@
+/* =========================================================
+   CORE DESIGN SYSTEM — product-agnostic
+   Override via [data-theme="..."] for each product brand
+   ========================================================= */
+:root {
+  /* Spacing */
+  --ds-space-xs: 4px;
+  --ds-space-sm: 8px;
+  --ds-space-md: 16px;
+  --ds-space-lg: 24px;
+  --ds-space-xl: 32px;
+  --ds-space-2xl: 48px;
+
+  /* Radius */
+  --ds-radius-sm: 8px;
+  --ds-radius-md: 12px;
+  --ds-radius-lg: 16px;
+  --ds-radius-full: 999px;
+
+  /* Typography */
+  --ds-font: "Inter", "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+  --ds-font-display: "Inter", system-ui, sans-serif;
+  --ds-text-xs: 12px;
+  --ds-text-sm: 13px;
+  --ds-text-md: 14px;
+  --ds-text-lg: 16px;
+  --ds-text-xl: 20px;
+  --ds-text-2xl: 28px;
+  --ds-text-3xl: 36px;
+  --ds-leading: 1.5;
+  --ds-weight-normal: 400;
+  --ds-weight-medium: 500;
+  --ds-weight-semibold: 600;
+  --ds-weight-bold: 700;
+
+  /* Shadow */
+  --ds-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --ds-shadow-md: 0 8px 24px rgba(0, 0, 0, 0.28);
+  --ds-shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.35);
+
+  /* Motion */
+  --ds-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --ds-duration: 0.18s;
+
+  /* Focus ring */
+  --ds-focus-ring: 0 0 0 3px rgba(201, 162, 75, 0.35);
+}
+
+/* ---------- Theme: Cash Flow (dark green + gold) ---------- */
+[data-theme="cashflow"],
+:root {
+  --ds-bg: #0f1a17;
+  --ds-bg-elevated: #13201c;
+  --ds-surface: #1a2b26;
+  --ds-surface-hover: #213530;
+  --ds-border: #2b3e37;
+  --ds-border-strong: #3a5248;
+
+  --ds-primary: #c9a24b;
+  --ds-primary-hover: #d4b15c;
+  --ds-primary-pressed: #b8923f;
+  --ds-primary-text: #1b160a;
+
+  --ds-text: #edeae0;
+  --ds-text-secondary: #a9b0a8;
+  --ds-text-muted: #7a847c;
+
+  --ds-success: #6f9f7a;
+  --ds-warning: #c9a24b;
+  --ds-danger: #c4735a;
+
+  --ds-input-bg: #121e1a;
+  --ds-overlay: rgba(8, 14, 12, 0.65);
+}
+
+/* ---------- Theme: Lanila (blue-purple) — siap dipakai web lain ---------- */
+[data-theme="lanila"] {
+  --ds-bg: #0e102a;
+  --ds-bg-elevated: #141636;
+  --ds-surface: #1a1d42;
+  --ds-surface-hover: #22265a;
+  --ds-border: #2c3160;
+  --ds-border-strong: #3d4380;
+
+  --ds-primary: #6366f1;
+  --ds-primary-hover: #7b7ff5;
+  --ds-primary-pressed: #4f46e5;
+  --ds-primary-text: #ffffff;
+
+  --ds-text: #f8fafc;
+  --ds-text-secondary: #a5b0c4;
+  --ds-text-muted: #7c879c;
+
+  --ds-success: #34d399;
+  --ds-warning: #fbbf24;
+  --ds-danger: #f87171;
+
+  --ds-input-bg: #12142f;
+  --ds-overlay: rgba(8, 10, 30, 0.7);
+  --ds-focus-ring: 0 0 0 3px rgba(99, 102, 241, 0.4);
+}

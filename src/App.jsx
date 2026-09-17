@@ -6,8 +6,7 @@ import {
 import {
   LayoutGrid, List, Tags, PieChart as PieIcon, Plus, Pencil, Trash2,
   Search, X, ArrowUpCircle, ArrowDownCircle, Wallet, TrendingUp, TrendingDown,
-  Receipt, AlertCircle, Check, RotateCcw, ArrowUpDown,
-} from "lucide-react";
+  Receipt, AlertCircle, Check, RotateCcw, ArrowUpDown, Lock} from "lucide-react";
 import { useAuth } from "./context/AuthContext";
 import {
   loadTransactions,
@@ -1245,11 +1244,14 @@ export default function App() {
         let cats = await loadCategories(user.id);
         let saldo = await loadSaldoAwal(user.id);
 
-        if (!txs.length) {
-          await seedUserData(user.id, SEED_TRANSACTIONS, DEFAULT_CATEGORIES);
-          txs = await loadTransactions(user.id);
-          cats = await loadCategories(user.id);
-          saldo = await loadSaldoAwal(user.id);
+        // Transaksi boleh kosong — tidak seed data contoh
+        if (!cats || (!(cats.income && cats.income.length) && !(cats.expense && cats.expense.length))) {
+          await saveCategories(user.id, DEFAULT_CATEGORIES);
+          cats = DEFAULT_CATEGORIES;
+        }
+        if (saldo == null) {
+          saldo = 0;
+          await saveSaldoAwal(user.id, 0);
         }
 
         if (cancelled) return;
@@ -1335,14 +1337,12 @@ export default function App() {
   async function handleReset() {
     try {
       await clearUserTransactions(user.id);
-      await seedUserData(user.id, SEED_TRANSACTIONS, DEFAULT_CATEGORIES);
-      const txs = await loadTransactions(user.id);
-      const cats = await loadCategories(user.id);
-      setTransactions(txs);
-      setCategories(cats || DEFAULT_CATEGORIES);
-      setSaldoAwal(0);
+      await saveCategories(user.id, DEFAULT_CATEGORIES);
       await saveSaldoAwal(user.id, 0);
-      showToast("Data direset ke awal.");
+      setTransactions([]);
+      setCategories(DEFAULT_CATEGORIES);
+      setSaldoAwal(0);
+      showToast("Data dikosongkan.");
     } catch (e) {
       console.error(e);
       showToast("Gagal reset data");
@@ -1403,6 +1403,27 @@ export default function App() {
             display: "flex", alignItems: "center", gap: 8, padding: "10px 12px",
             borderRadius: 8, color: "var(--ink-dim)", textDecoration: "none", fontSize: 13,
           }}>Langganan</a>
+          {planInfo?.canUseProTools ? (
+            <a href="/pro-tools" style={{
+              display: "flex", alignItems: "center", gap: 8, padding: "10px 12px",
+              borderRadius: 8, color: "var(--ink-dim)", textDecoration: "none", fontSize: 13,
+            }}>Tools Pro</a>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                showToast("Tools Pro (wallet, utang, prediksi, PDF) khusus paket Pro. Silakan upgrade di Langganan.");
+              }}
+              style={{
+                display: "flex", alignItems: "center", gap: 8, padding: "10px 12px",
+                borderRadius: 8, color: "var(--ink-dim)", fontSize: 13,
+                background: "transparent", border: "none", cursor: "pointer",
+                width: "100%", textAlign: "left", opacity: 0.75,
+              }}
+            >
+              <Lock size={14} /> Tools Pro
+            </button>
+          )}
         </div>
 
         <div style={{ marginTop: 26, paddingTop: 16, borderTop: "1px solid var(--paper-line)" }}>
@@ -1428,7 +1449,7 @@ export default function App() {
           style={{ marginTop: 16, width: "100%", justifyContent: "center", fontSize: 12 }}
           onClick={() => setConfirmReset(true)}
         >
-          <RotateCcw size={13} /> Reset ke data awal
+          <RotateCcw size={13} /> Reset data
         </button>
 
         <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--paper-line)" }}>
@@ -1498,6 +1519,27 @@ export default function App() {
           gap: 2, padding: "8px 0", minHeight: 48, color: "var(--ink-dim)",
           fontSize: 10.5, textDecoration: "none",
         }}>Langganan</a>
+        {planInfo?.canUseProTools ? (
+          <a href="/pro-tools" style={{
+            flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
+            gap: 2, padding: "8px 0", minHeight: 48, color: "var(--ink-dim)",
+            fontSize: 10.5, textDecoration: "none",
+          }}>Pro</a>
+        ) : (
+          <button
+            type="button"
+            onClick={() => showToast("Tools Pro khusus paket Pro. Upgrade di Langganan.")}
+            style={{
+              flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
+              gap: 2, padding: "8px 0", minHeight: 48, color: "var(--ink-dim)",
+              fontSize: 10.5, background: "transparent", border: "none", cursor: "pointer",
+              opacity: 0.75,
+            }}
+          >
+            <Lock size={16} />
+            Pro
+          </button>
+        )}
       </div>
 
       <main style={{ flex: 1, padding: 22, paddingBottom: 70, maxWidth: 1180, margin: "0 auto", width: "100%" }}>
@@ -1551,7 +1593,7 @@ export default function App() {
       {confirmReset && (
         <ConfirmDialog
           title="Reset semua data?"
-          body="Ini akan mengembalikan transaksi ke data contoh awal untuk akun kamu saja."
+          body="Semua transaksi akan dihapus. Saldo awal jadi 0. Tidak mengembalikan data contoh."
           onClose={() => setConfirmReset(false)}
           onConfirm={async () => {
             setConfirmReset(false);

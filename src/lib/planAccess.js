@@ -22,6 +22,11 @@ export function planRank(name) {
   return PLAN_RANK.gratis
 }
 
+export function canUseProTools(planName) {
+  const n = normalizePlanName(planName)
+  return n.includes('pro') || n.includes('tahun') || n.includes('annual')
+}
+
 export function isSubscriptionActive(sub) {
   if (!sub) return false
   if (sub.status !== 'active') return false
@@ -64,6 +69,7 @@ export async function getUserPlanInfo(userId) {
     canUseCustomCategory: rank >= PLAN_RANK.basic,
     canUseFullAnalytics: rank >= PLAN_RANK.pro,
     canUseExport: rank >= PLAN_RANK.basic,
+    canUseProTools: rank >= PLAN_RANK.pro || canUseProTools(planName),
     txLimitPerMonth: rank >= PLAN_RANK.basic ? null : FREE_TX_LIMIT_PER_MONTH,
   }
 }

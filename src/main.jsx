@@ -22,6 +22,9 @@ import AdminPayments from './pages/AdminPayments'
 import SuperAdminHome from './pages/SuperAdminHome'
 import SuperAdminLogs from './pages/SuperAdminLogs'
 import SuperAdminReports from './pages/SuperAdminReports'
+import ForgotPassword from './pages/ForgotPassword'
+import ResetPassword from './pages/ResetPassword'
+import ProTools from './pages/ProTools'
 
 /* ---------------------------------------------------------------
    RoleRoute — batasi akses berdasarkan role
@@ -178,6 +181,15 @@ function Root() {
               </PublicOnly>
             }
           />
+          <Route
+            path="/forgot-password"
+            element={
+              <PublicOnly>
+                <ForgotPassword />
+              </PublicOnly>
+            }
+          />
+          <Route path="/reset-password" element={<ResetPassword />} />
 
           {/* Redirect root */}
           <Route path="/" element={<HomeRedirect />} />
@@ -212,6 +224,14 @@ function Root() {
             element={
               <RoleRoute allow={['user']}>
                 <ClientSubscription />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/pro-tools"
+            element={
+              <RoleRoute allow={['user']}>
+                <ProTools />
               </RoleRoute>
             }
           />
