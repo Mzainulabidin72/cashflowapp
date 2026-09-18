@@ -1,0 +1,267 @@
+/**
+ * LANILA / BUKU KAS — Design System tokens
+ * Reusable across CashFlow, Time Blocking, Habit Control
+ */
+:root,
+html[data-color-mode="dark"] {
+  --ds-bg: #101814;
+  --ds-surface: #19231f;
+  --ds-elevated: #202c27;
+  --ds-border: #304039;
+  --ds-border-subtle: #28342f;
+
+  --ds-primary: #c7a657;
+  --ds-primary-hover: #d4b56a;
+  --ds-primary-muted: rgba(199, 166, 87, 0.14);
+  --ds-primary-text: #1b160a;
+
+  --ds-text: #f2f0e8;
+  --ds-text-secondary: #9ea9a2;
+  --ds-text-muted: #6f7a74;
+
+  --ds-success: #7faf9f;
+  --ds-warning: #c7a657;
+  --ds-error: #b97861;
+  --ds-income: #c7a657;
+  --ds-expense: #b97861;
+  --ds-info: #7a9bb8;
+
+  /* Map to app legacy vars */
+  --paper: var(--ds-bg);
+  --paper-raised: var(--ds-surface);
+  --paper-line: var(--ds-border);
+  --ink: var(--ds-text);
+  --ink-dim: var(--ds-text-secondary);
+  --brass: var(--ds-primary);
+  --brass-soft: var(--ds-primary-muted);
+  --clay: var(--ds-expense);
+  --clay-soft: rgba(185, 120, 97, 0.14);
+  --sage: var(--ds-success);
+  --btn-primary-text: var(--ds-primary-text);
+
+  --ds-radius-sm: 8px;
+  --ds-radius-md: 12px;
+  --ds-radius-lg: 16px;
+  --ds-radius-pill: 999px;
+
+  --ds-space-1: 4px;
+  --ds-space-2: 8px;
+  --ds-space-3: 12px;
+  --ds-space-4: 16px;
+  --ds-space-5: 20px;
+  --ds-space-6: 24px;
+  --ds-space-8: 32px;
+  --ds-space-10: 40px;
+
+  --ds-font: "Inter", system-ui, -apple-system, sans-serif;
+  --ds-font-display: "Source Serif 4", Georgia, serif;
+  --ds-font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  --ds-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --ds-shadow-md: 0 8px 24px rgba(0, 0, 0, 0.28);
+  --ds-sidebar-w: 240px;
+  --ds-sidebar-collapsed: 72px;
+}
+
+html[data-color-mode="light"] {
+  --ds-bg: #eef2ef;
+  --ds-surface: #ffffff;
+  --ds-elevated: #f7f9f7;
+  --ds-border: #d0d9d3;
+  --ds-border-subtle: #e2e8e4;
+
+  --ds-primary: #a67c2d;
+  --ds-primary-hover: #8f6a24;
+  --ds-primary-muted: rgba(166, 124, 45, 0.12);
+  --ds-primary-text: #ffffff;
+
+  --ds-text: #1a2420;
+  --ds-text-secondary: #5a6860;
+  --ds-text-muted: #88948c;
+
+  --ds-success: #3d7a4a;
+  --ds-warning: #a67c2d;
+  --ds-error: #b54a3a;
+  --ds-income: #a67c2d;
+  --ds-expense: #b54a3a;
+  --ds-info: #3d6a8a;
+
+  --paper: var(--ds-bg);
+  --paper-raised: var(--ds-surface);
+  --paper-line: var(--ds-border);
+  --ink: var(--ds-text);
+  --ink-dim: var(--ds-text-secondary);
+  --brass: var(--ds-primary);
+  --brass-soft: var(--ds-primary-muted);
+  --clay: var(--ds-expense);
+  --clay-soft: rgba(181, 74, 58, 0.12);
+  --sage: var(--ds-success);
+  --btn-primary-text: var(--ds-primary-text);
+}
+
+/* Typography utilities */
+.ds-page-title {
+  font-family: var(--ds-font-display);
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  color: var(--ds-text);
+  margin: 0 0 4px;
+}
+.ds-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ds-text-muted);
+  margin: 0 0 12px;
+}
+.ds-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ds-text);
+  margin: 0 0 12px;
+}
+.ds-money {
+  font-family: var(--ds-font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.ds-caption {
+  font-size: 12px;
+  color: var(--ds-text-secondary);
+}
+
+/* Nav groups */
+.ds-nav-group {
+  margin-top: 16px;
+  margin-bottom: 4px;
+  padding: 0 12px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ds-text-muted);
+}
+.ds-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  margin: 2px 8px;
+  border-radius: var(--ds-radius-sm);
+  color: var(--ds-text-secondary);
+  text-decoration: none;
+  font-size: 13.5px;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  width: calc(100% - 16px);
+  text-align: left;
+  transition: background 0.15s, color 0.15s;
+}
+.ds-nav-item:hover {
+  background: var(--ds-border-subtle);
+  color: var(--ds-text);
+}
+.ds-nav-item.is-active {
+  background: var(--ds-primary-muted);
+  color: var(--ds-primary);
+  font-weight: 600;
+}
+
+/* Period select */
+.ds-period {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.ds-period label {
+  font-size: 12.5px;
+  color: var(--ds-text-secondary);
+}
+.ds-period select {
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  color: var(--ds-text);
+  border-radius: var(--ds-radius-sm);
+  padding: 8px 12px;
+  font-size: 13px;
+  font-family: inherit;
+  min-width: 140px;
+}
+.ds-period select:focus {
+  outline: none;
+  border-color: var(--ds-primary);
+  box-shadow: 0 0 0 3px var(--ds-primary-muted);
+}
+
+/* Stat grid */
+.ds-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+}
+.ds-stat-card {
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  padding: 16px 18px;
+}
+.ds-stat-card .label {
+  font-size: 12px;
+  color: var(--ds-text-secondary);
+  margin-bottom: 8px;
+}
+.ds-stat-card .value {
+  font-family: var(--ds-font-mono);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--ds-text);
+}
+.ds-stat-card .value.up { color: var(--ds-income); }
+.ds-stat-card .value.down { color: var(--ds-expense); }
+
+/* Budget compact */
+.ds-budget {
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  padding: 16px;
+}
+.ds-budget-bar {
+  height: 8px;
+  background: var(--ds-bg);
+  border-radius: 999px;
+  overflow: hidden;
+  margin: 10px 0 6px;
+}
+.ds-budget-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.3s;
+}
+
+/* Chart card */
+.ds-chart-card {
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  padding: 16px 18px;
+}
+
+/* Empty */
+.ds-empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--ds-text-secondary);
+}
+.ds-empty h4 {
+  margin: 12px 0 6px;
+  color: var(--ds-text);
+  font-size: 15px;
+}

@@ -1,0 +1,176 @@
+/**
+ * LANILA Design Tokens
+ * Parent brand: blue → purple
+ * Product Buku Kas: warm gold / charcoal (semantic accent)
+ *
+ * Architecture:
+ *   --lanila-*   = parent brand (shared across all products)
+ *   --product-*  = product-specific accent (Buku Kas, Time Blocking, ...)
+ */
+
+:root {
+  /* ===== LANILA parent (always available) ===== */
+  --lanila-blue: #3b82f6;
+  --lanila-purple: #7c4dff;
+  --lanila-navy: #101827;
+  --lanila-neutral: #f7f8fa;
+  --lanila-white: #ffffff;
+  --lanila-gradient: linear-gradient(135deg, #3b82f6 0%, #7c4dff 100%);
+
+  /* Shared type / space / radius (all products) */
+  --lanila-font: "Inter", system-ui, -apple-system, sans-serif;
+  --lanila-font-display: "Inter", system-ui, sans-serif;
+  --lanila-font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-pill: 999px;
+
+  --shadow-sm: 0 1px 2px rgba(16, 24, 39, 0.06);
+  --shadow-md: 0 8px 24px rgba(16, 24, 39, 0.12);
+  --shadow-lg: 0 16px 40px rgba(16, 24, 39, 0.16);
+
+  --sidebar-width: 240px;
+  --sidebar-collapsed: 72px;
+}
+
+/* ===== Product: Buku Kas (dark financial) ===== */
+[data-product="buku-kas"][data-color-mode="dark"],
+[data-product="buku-kas"]:not([data-color-mode="light"]) {
+  --product-accent: #c7a657;
+  --product-accent-hover: #d4b56a;
+  --product-accent-muted: rgba(199, 166, 87, 0.14);
+  --product-accent-text: #1b160a;
+  --product-expense: #b97861;
+  --product-success: #7faf9f;
+
+  --ds-bg: #101814;
+  --ds-surface: #19231f;
+  --ds-elevated: #202c27;
+  --ds-border: #304039;
+  --ds-text: #f2f0e8;
+  --ds-text-secondary: #9ea9a2;
+  --ds-text-muted: #6f7a74;
+  --ds-primary: var(--product-accent);
+  --ds-primary-hover: var(--product-accent-hover);
+  --ds-primary-muted: var(--product-accent-muted);
+  --ds-primary-text: var(--product-accent-text);
+  --ds-danger: var(--product-expense);
+  --ds-success: var(--product-success);
+
+  --paper: var(--ds-bg);
+  --paper-raised: var(--ds-surface);
+  --paper-line: var(--ds-border);
+  --ink: var(--ds-text);
+  --ink-dim: var(--ds-text-secondary);
+  --brass: var(--product-accent);
+  --brass-soft: var(--product-accent-muted);
+  --clay: var(--product-expense);
+  --clay-soft: rgba(185, 120, 97, 0.14);
+  --sage: var(--product-success);
+  --btn-primary-text: var(--product-accent-text);
+}
+
+[data-product="buku-kas"][data-color-mode="light"] {
+  --product-accent: #a67c2d;
+  --product-accent-hover: #8f6a24;
+  --product-accent-muted: rgba(166, 124, 45, 0.12);
+  --product-accent-text: #ffffff;
+  --product-expense: #b54a3a;
+  --product-success: #3d7a4a;
+
+  --ds-bg: #eef2ef;
+  --ds-surface: #ffffff;
+  --ds-elevated: #f7f9f7;
+  --ds-border: #d0d9d3;
+  --ds-text: #1a2420;
+  --ds-text-secondary: #5a6860;
+  --ds-text-muted: #88948c;
+  --ds-primary: var(--product-accent);
+  --ds-primary-hover: var(--product-accent-hover);
+  --ds-primary-muted: var(--product-accent-muted);
+  --ds-primary-text: var(--product-accent-text);
+  --ds-danger: var(--product-expense);
+  --ds-success: var(--product-success);
+
+  --paper: var(--ds-bg);
+  --paper-raised: var(--ds-surface);
+  --paper-line: var(--ds-border);
+  --ink: var(--ds-text);
+  --ink-dim: var(--ds-text-secondary);
+  --brass: var(--product-accent);
+  --brass-soft: var(--product-accent-muted);
+  --clay: var(--product-expense);
+  --clay-soft: rgba(181, 74, 58, 0.12);
+  --sage: var(--product-success);
+  --btn-primary-text: var(--product-accent-text);
+}
+
+/* Future products (stubs) */
+[data-product="time-blocking"] {
+  --product-accent: #3b82f6;
+  --product-accent-hover: #2563eb;
+  --product-accent-muted: rgba(59, 130, 246, 0.14);
+  --product-accent-text: #ffffff;
+}
+[data-product="habit-control"] {
+  --product-accent: #14b8a6;
+  --product-accent-hover: #0d9488;
+  --product-accent-muted: rgba(20, 184, 166, 0.14);
+  --product-accent-text: #ffffff;
+}
+
+/* Brand lockup */
+.lanila-lockup {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.lanila-lockup-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.lanila-wordmark {
+  font-family: var(--lanila-font);
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: -0.03em;
+  color: var(--ds-text, var(--lanila-navy));
+  line-height: 1.2;
+}
+.lanila-product-name {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ds-text-secondary, #9ea9a2);
+  letter-spacing: 0.01em;
+}
+.lanila-tagline {
+  font-size: 11px;
+  color: var(--ds-text-muted, #6f7a74);
+  letter-spacing: 0.02em;
+}
+
+.lanila-powered {
+  font-size: 11px;
+  color: var(--ds-text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.lanila-powered strong {
+  color: var(--ds-text-secondary);
+  font-weight: 600;
+}

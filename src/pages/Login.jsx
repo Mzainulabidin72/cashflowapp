@@ -1,21 +1,16 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import ThemeToggle from '../components/ThemeToggle'
 import '../styles/design-tokens.css'
 import '../styles/auth-layout.css'
+import '../styles/theme.css'
 
 function BrandLogo({ size = 48 }) {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 48 48"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-    >
+    <svg width={size} height={size} viewBox="0 0 48 48" fill="none" aria-hidden="true">
       <defs>
-        <linearGradient id="lanilaGrad" x1="8" y1="4" x2="40" y2="44" gradientUnits="userSpaceOnUse">
+        <linearGradient id="lanilaGrad" x1="8" y1="4" x2="40" y2="44">
           <stop stopColor="#6366F1" />
           <stop offset="0.55" stopColor="#8B5CF6" />
           <stop offset="1" stopColor="#C9A24B" />
@@ -60,7 +55,6 @@ export default function Login() {
     e.preventDefault()
     setError('')
     if (!validate()) return
-
     setLoading(true)
     try {
       const { error: err } = await supabase.auth.signInWithPassword({
@@ -68,16 +62,16 @@ export default function Login() {
         password,
       })
       if (err) {
-        const msg = /invalid|credentials|password|email/i.test(err.message)
-          ? 'Email atau kata sandi yang Anda masukkan salah.'
-          : err.message
-        setError(msg)
+        setError(
+          /invalid|credentials|password|email/i.test(err.message)
+            ? 'Email atau kata sandi yang Anda masukkan salah.'
+            : err.message
+        )
         return
       }
       navigate('/')
     } catch (e) {
-      console.error(e)
-      setError(e.message || 'Gagal masuk. Coba lagi.')
+      setError(e.message || 'Gagal masuk.')
     } finally {
       setLoading(false)
     }
@@ -94,49 +88,36 @@ export default function Login() {
               <span className="auth-logo-product">Cash Flow / Buku Kas</span>
             </div>
           </div>
-
-          <h2 className="auth-tagline">
-            Kelola keuangan dengan lebih mudah dan teratur.
-          </h2>
+          <h2 className="auth-tagline">Kelola keuangan dengan lebih mudah dan teratur.</h2>
           <p className="auth-desc">
-            Better tools · brighter days — catat, pantau, dan rencanakan cash flow
-            dalam satu tempat.
+            Better tools · brighter days — catat, pantau, dan rencanakan cash flow dalam satu tempat.
           </p>
-
           <ul className="auth-benefits">
-            <li>
-              <span className="check" aria-hidden="true">✓</span>
-              Catat pemasukan &amp; pengeluaran harian
-            </li>
-            <li>
-              <span className="check" aria-hidden="true">✓</span>
-              Pantau cash flow dan ringkasan bulanan
-            </li>
-            <li>
-              <span className="check" aria-hidden="true">✓</span>
-              Langganan, chat support, dan tools Pro
-            </li>
+            <li><span className="check">✓</span> Catat pemasukan &amp; pengeluaran harian</li>
+            <li><span className="check">✓</span> Pantau cash flow dan ringkasan bulanan</li>
+            <li><span className="check">✓</span> Langganan, chat support, dan tools Pro</li>
           </ul>
         </div>
       </aside>
 
       <main className="auth-panel">
         <div className="auth-card">
-          <div className="auth-mobile-brand">
-            <BrandLogo size={36} />
-            <div className="auth-logo-text">
-              <span className="auth-logo-name" style={{ fontSize: 16 }}>Lanila</span>
-              <span className="auth-logo-product">Cash Flow</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <div className="auth-mobile-brand" style={{ marginBottom: 0 }}>
+              <BrandLogo size={32} />
+              <div className="auth-logo-text">
+                <span className="auth-logo-name" style={{ fontSize: 15 }}>Lanila</span>
+                <span className="auth-logo-product">Cash Flow</span>
+              </div>
             </div>
+            <ThemeToggle label={false} />
           </div>
 
           <h1>Masuk</h1>
           <p className="welcome">Selamat datang kembali. Silakan masuk ke akun Anda.</p>
 
           {error && (
-            <div className="ds-alert ds-alert-error" role="alert">
-              {error}
-            </div>
+            <div className="ds-alert ds-alert-error" role="alert">{error}</div>
           )}
 
           <form onSubmit={handleSubmit} noValidate>
@@ -150,11 +131,7 @@ export default function Login() {
                 placeholder="nama@email.com"
                 value={email}
                 disabled={loading}
-                aria-invalid={!!fieldErr.email}
-                onChange={(e) => {
-                  setEmail(e.target.value)
-                  if (fieldErr.email) setFieldErr((f) => ({ ...f, email: '' }))
-                }}
+                onChange={(e) => setEmail(e.target.value)}
               />
               {fieldErr.email && <p className="ds-field-error">{fieldErr.email}</p>}
             </div>
@@ -170,11 +147,7 @@ export default function Login() {
                   placeholder="Masukkan kata sandi"
                   value={password}
                   disabled={loading}
-                  aria-invalid={!!fieldErr.password}
-                  onChange={(e) => {
-                    setPassword(e.target.value)
-                    if (fieldErr.password) setFieldErr((f) => ({ ...f, password: '' }))
-                  }}
+                  onChange={(e) => setPassword(e.target.value)}
                 />
                 <button
                   type="button"
@@ -198,8 +171,7 @@ export default function Login() {
           </form>
 
           <p className="auth-footer">
-            Belum punya akun?{' '}
-            <Link to="/register" className="ds-link">Daftar</Link>
+            Belum punya akun? <Link to="/register" className="ds-link">Daftar</Link>
           </p>
         </div>
       </main>

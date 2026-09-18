@@ -1,0 +1,90 @@
+/* ===== DARK ===== */
+:root,
+html[data-color-mode="dark"] {
+  --ds-bg: #0f1a17;
+  --ds-bg-elevated: #13201c;
+  --ds-surface: #1a2b26;
+  --ds-surface-hover: #213530;
+  --ds-border: #2b3e37;
+  --ds-border-strong: #3a5248;
+  --ds-primary: #c9a24b;
+  --ds-primary-hover: #d4b15c;
+  --ds-primary-pressed: #b8923f;
+  --ds-primary-text: #1b160a;
+  --ds-text: #edeae0;
+  --ds-text-secondary: #a9b0a8;
+  --ds-text-muted: #7a847c;
+  --ds-success: #6f9f7a;
+  --ds-danger: #c4735a;
+  --ds-input-bg: #121e1a;
+  --ds-brand-glow: rgba(201, 162, 75, 0.12);
+  --ds-brand-glow-2: rgba(99, 102, 241, 0.08);
+  --ds-check-bg: rgba(201, 162, 75, 0.15);
+
+  --paper: #16231f;
+  --paper-raised: #1d2e28;
+  --paper-line: #2b3e37;
+  --ink: #edeae0;
+  --ink-dim: #a9b0a8;
+  --brass: #c9a24b;
+  --clay: #c4735a;
+  --moss: #6f9f7a;
+}
+
+/* ===== LIGHT — harus lebih spesifik ===== */
+html[data-color-mode="light"] {
+  --ds-bg: #eef2ef !important;
+  --ds-bg-elevated: #f7f9f7 !important;
+  --ds-surface: #ffffff !important;
+  --ds-surface-hover: #e8eeea !important;
+  --ds-border: #cfd8d2 !important;
+  --ds-border-strong: #b0bdb4 !important;
+  --ds-primary: #a67c2d !important;
+  --ds-primary-hover: #8f6a24 !important;
+  --ds-primary-pressed: #7a5a1e !important;
+  --ds-primary-text: #ffffff !important;
+  --ds-text: #1a2420 !important;
+  --ds-text-secondary: #4a5a52 !important;
+  --ds-text-muted: #7a8a82 !important;
+  --ds-success: #3d7a4a !important;
+  --ds-danger: #b54a3a !important;
+  --ds-input-bg: #f4f7f5 !important;
+  --ds-brand-glow: rgba(166, 124, 45, 0.1) !important;
+  --ds-brand-glow-2: rgba(99, 102, 241, 0.06) !important;
+  --ds-check-bg: rgba(166, 124, 45, 0.12) !important;
+
+  --paper: #eef2ef !important;
+  --paper-raised: #ffffff !important;
+  --paper-line: #cfd8d2 !important;
+  --ink: #1a2420 !important;
+  --ink-dim: #4a5a52 !important;
+  --brass: #a67c2d !important;
+  --clay: #b54a3a !important;
+  --moss: #3d7a4a !important;
+}
+
+html,
+body,
+#root {
+  background: var(--ds-bg) !important;
+  color: var(--ds-text);
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 40px;
+  height: 40px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid var(--ds-border);
+  background: var(--ds-surface);
+  color: var(--ds-text);
+  cursor: pointer;
+}
+.theme-toggle:hover {
+  background: var(--ds-surface-hover);
+}

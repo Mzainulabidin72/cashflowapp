@@ -1,92 +1,68 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { getUserPlanInfo, countTxThisMonth } from '../lib/planAccess'
+import { getUserPlanInfo } from '../lib/planAccess'
 
-export default function SubscriptionBanner({ transactions = [] }) {
+function formatDate(iso) {
+  if (!iso) return null
+  try {
+    return new Date(iso).toLocaleDateString('id-ID', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    })
+  } catch {
+    return iso
+  }
+}
+
+export default function SubscriptionBanner() {
   const { user } = useAuth()
   const [info, setInfo] = useState(null)
 
   useEffect(() => {
+    if (!user) return
     let cancelled = false
-    async function load() {
-      if (!user) return
-      try {
-        const data = await getUserPlanInfo(user.id)
-        if (!cancelled) setInfo(data)
-      } catch (e) {
-        console.error(e)
-      }
-    }
-    load()
+    getUserPlanInfo(user.id)
+      .then((p) => {
+        if (!cancelled) setInfo(p)
+      })
+      .catch(() => {})
     return () => {
       cancelled = true
     }
-  }, [user, transactions.length])
+  }, [user])
 
   if (!info) return null
 
-  const used = countTxThisMonth(transactions)
-  const limit = info.txLimitPerMonth
-  const isPaidActive = info.source === 'subscription' && info.rank >= 1
+  const name = info.planName || 'Gratis'
+  const isPro =
+    /pro|tahun|annual/i.test(String(name)) && info.source === 'subscription'
+  const ends = formatDate(info.subscription?.ends_at)
 
-  if (isPaidActive) {
-    const ends = info.subscription?.ends_at
-    return (
-      <div style={styles.ok}>
-        Paket <b>{info.planName}</b> aktif
-        {ends ? ` sampai ${new Date(ends).toLocaleDateString('id-ID')}` : ''}.{' '}
-        <Link to="/subscription" style={styles.link}>
-          Detail
-        </Link>
-      </div>
-    )
+  if (!isPro && info.source !== 'pending') {
+    // optional soft CTA for free users — keep minimal
+    return null
   }
 
   if (info.source === 'pending') {
     return (
-      <div style={styles.warn}>
-        Langganan menunggu konfirmasi pembayaran.{' '}
-        <Link to="/subscription" style={styles.link}>
-          Lihat status
-        </Link>
+      <div className="sub-banner" role="status">
+        <span className="badge">PENDING</span>
+        <span>Pembayaran langganan menunggu konfirmasi.</span>
+        <Link to="/subscription">Detail →</Link>
       </div>
     )
   }
 
   return (
-    <div style={styles.warn}>
-      Paket <b>Gratis</b>
-      {limit != null ? ` · ${used}/${limit} transaksi bulan ini` : ''}.{' '}
-      <Link to="/subscription" style={styles.link}>
-        Upgrade
-      </Link>
+    <div className="sub-banner" role="status">
+      <span className="badge">PRO</span>
+      <span>
+        Paket <strong>{name}</strong>
+        {ends ? ` aktif sampai ${ends}` : ' aktif'}
+      </span>
+      <Link to="/subscription">Detail →</Link>
     </div>
   )
-}
-
-const styles = {
-  ok: {
-    background: 'rgba(127,163,127,0.15)',
-    border: '1px solid rgba(127,163,127,0.35)',
-    color: '#EDEAE0',
-    borderRadius: 10,
-    padding: '10px 14px',
-    fontSize: 13,
-    marginBottom: 14,
-  },
-  warn: {
-    background: 'rgba(201,162,75,0.12)',
-    border: '1px solid rgba(201,162,75,0.35)',
-    color: '#EDEAE0',
-    borderRadius: 10,
-    padding: '10px 14px',
-    fontSize: 13,
-    marginBottom: 14,
-  },
-  link: {
-    color: '#C9A24B',
-    fontWeight: 600,
-    textDecoration: 'none',
-  },
 }

@@ -1,3 +1,4 @@
+import ThemeToggle from "./components/ThemeToggle";
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
@@ -22,6 +23,7 @@ import {
 } from "./lib/dataService";
 import SubscriptionBanner from "./components/SubscriptionBanner";
 import BudgetPanel from "./components/BudgetPanel";
+import LanilaLogo from "./components/brand/LanilaLogo";
 import { getUserPlanInfo, countTxThisMonth } from "./lib/planAccess";
 import { exportTransactionsCsv, exportSummaryCsv } from "./lib/exportCsv";
 import { exportElementAsPng } from "./lib/exportImage";
@@ -369,6 +371,7 @@ function GlobalStyle() {
     <style>{`
       @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap');
 
+      /* Default = dark; light di-override via html[data-color-mode] */
       .bk-root {
         --ink: #EDEAE0;
         --ink-dim: #A9B0A8;
@@ -380,11 +383,43 @@ function GlobalStyle() {
         --clay: #C4735A;
         --clay-soft: rgba(196,115,90,0.14);
         --sage: #7FA37F;
+        --btn-primary-text: #1B160A;
         font-family: 'Inter', system-ui, sans-serif;
         background: var(--paper);
         color: var(--ink);
         min-height: 100%;
         width: 100%;
+        transition: background 0.2s ease, color 0.2s ease;
+      }
+      html[data-color-mode="light"] .bk-root {
+        --ink: #1b2420;
+        --ink-dim: #68736d;
+        --paper: #f4f6f3;
+        --paper-raised: #ffffff;
+        --paper-line: #dce3dd;
+        --brass: #b8922f;
+        --brass-soft: rgba(184,146,47,0.12);
+        --clay: #b07860;
+        --clay-soft: rgba(176,120,96,0.12);
+        --sage: #5a9a7a;
+        --btn-primary-text: #ffffff;
+        --chart-grid: #e4ebe6;
+        --chart-tooltip-bg: #1a2b26;
+        --chart-tooltip-border: #2b3e37;
+        --chart-tooltip-text: #f2f0e8;
+      }
+      html[data-color-mode="dark"] .bk-root {
+        --ink: #EDEAE0;
+        --ink-dim: #A9B0A8;
+        --paper: #16231F;
+        --paper-raised: #1D2E28;
+        --paper-line: #2B3E37;
+        --brass: #C9A24B;
+        --brass-soft: rgba(201,162,75,0.14);
+        --clay: #C4735A;
+        --clay-soft: rgba(196,115,90,0.14);
+        --sage: #7FA37F;
+        --btn-primary-text: #1B160A;
       }
       .bk-serif { font-family: 'Source Serif 4', Georgia, serif; }
       .bk-mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; }
@@ -401,7 +436,7 @@ function GlobalStyle() {
         transition: background .15s, border-color .15s, opacity .15s;
         font-family: 'Inter', sans-serif;
       }
-      .bk-btn-primary { background: var(--brass); color: #1B160A; }
+      .bk-btn-primary { background: var(--brass); color: var(--btn-primary-text, #1B160A); }
       .bk-btn-primary:hover { opacity: .9; }
       .bk-btn-ghost { background: transparent; color: var(--ink); border-color: var(--paper-line); }
       .bk-btn-ghost:hover { background: var(--paper-line); }
@@ -429,11 +464,12 @@ function GlobalStyle() {
       .bk-badge-out { background: var(--clay-soft); color: var(--clay); border-radius: 999px; padding: 2px 9px; font-size: 12px; font-weight: 600; }
 
       .bk-row:hover { background: rgba(255,255,255,0.02); }
+      html[data-color-mode="light"] .bk-row:hover { background: rgba(0,0,0,0.03); }
       .bk-scroll::-webkit-scrollbar { height: 6px; width: 6px; }
       .bk-scroll::-webkit-scrollbar-thumb { background: var(--paper-line); border-radius: 4px; }
 
       .bk-modal-overlay {
-        position: fixed; inset: 0; background: rgba(8,12,10,0.6);
+        position: fixed; inset: 0; background: rgba(8,12,10,0.55);
         display: flex; align-items: center; justify-content: center; z-index: 50; padding: 16px;
       }
       .bk-toast {
@@ -458,7 +494,7 @@ function StatCard({ label, value, icon: Icon, tone = "neutral", sub }) {
         <span style={{ fontSize: 12.5, color: "var(--ink-dim)" }}>{label}</span>
         {Icon && <Icon size={16} color={toneColor} />}
       </div>
-      <div className="bk-mono bk-serif" style={{ fontSize: 21, fontWeight: 600, color: toneColor, lineHeight: 1.2 }}>
+      <div className="bk-mono bk-serif" style={{ fontSize: 22, fontWeight: 600, color: toneColor, lineHeight: 1.2, letterSpacing: "-0.02em" }}>
         {value}
       </div>
       {sub && <div style={{ fontSize: 11.5, color: "var(--ink-dim)", marginTop: 4 }}>{sub}</div>}
@@ -472,23 +508,17 @@ function PeriodFilter({ value, onChange, customFrom, customTo, onCustomFrom, onC
     ["year", "Tahun ini"], ["custom", "Custom"], ["all", "Semua"],
   ];
   return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-      {opts.map(([k, label]) => (
-        <button key={k} onClick={() => onChange(k)}
-          className="bk-btn"
-          style={{
-            background: value === k ? "var(--brass-soft)" : "var(--paper)",
-            color: value === k ? "var(--brass)" : "var(--ink-dim)",
-            border: "1px solid " + (value === k ? "var(--brass)" : "var(--paper-line)"),
-            fontSize: 12.5, padding: "6px 12px",
-          }}>
-          {label}
-        </button>
-      ))}
+    <div className="ds-period">
+      <label htmlFor="period-select">Periode</label>
+      <select id="period-select" value={value} onChange={(e) => onChange(e.target.value)} aria-label="Filter periode">
+        {opts.map(([k, label]) => (
+          <option key={k} value={k}>{label}</option>
+        ))}
+      </select>
       {value === "custom" && (
         <>
           <input type="date" className="bk-input" style={{ width: 145 }} value={customFrom} onChange={(e) => onCustomFrom(e.target.value)} />
-          <span style={{ color: "var(--ink-dim)", fontSize: 12 }}>s/d</span>
+          <span className="ds-caption">s/d</span>
           <input type="date" className="bk-input" style={{ width: 145 }} value={customTo} onChange={(e) => onCustomTo(e.target.value)} />
         </>
       )}
@@ -990,10 +1020,10 @@ function Dashboard({ transactions, categories, saldoAwal }) {
           <h4 className="bk-serif" style={{ fontSize: 15, margin: "0 0 12px" }}>Pemasukan vs pengeluaran per bulan</h4>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={byMonth}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--paper-line)" vertical={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid, var(--paper-line))" vertical={false} fill="transparent" />
               <XAxis dataKey="label" stroke="var(--ink-dim)" fontSize={12} tickLine={false} axisLine={false} />
               <YAxis stroke="var(--ink-dim)" fontSize={11} tickFormatter={shortRupiah} tickLine={false} axisLine={false} width={54} />
-              <Tooltip contentStyle={{ background: "#1D2E28", border: "1px solid #2B3E37", borderRadius: 8, fontSize: 12.5 }}
+              <Tooltip contentStyle={{ background: "var(--chart-tooltip-bg, #1D2E28)", border: "1px solid var(--chart-tooltip-border, #2B3E37)", borderRadius: 10, fontSize: 12.5, color: "var(--chart-tooltip-text, #F2F0E8)", boxShadow: "0 8px 24px rgba(0,0,0,0.2)" }}
                 formatter={(v) => rupiah(v)} labelStyle={{ color: "#EDEAE0" }} />
               <Legend wrapperStyle={{ fontSize: 12 }} />
               <Bar dataKey="income" name="Pemasukan" fill="#C9A24B" radius={[4, 4, 0, 0]} />
@@ -1014,7 +1044,7 @@ function Dashboard({ transactions, categories, saldoAwal }) {
                     <Cell key={entry.name} fill={colorForCategory(entry.name, categories.expense)} />
                   ))}
                 </Pie>
-                <Tooltip contentStyle={{ background: "#1D2E28", border: "1px solid #2B3E37", borderRadius: 8, fontSize: 12.5 }} formatter={(v) => rupiah(v)} />
+                <Tooltip contentStyle={{ background: "var(--chart-tooltip-bg, #1D2E28)", border: "1px solid var(--chart-tooltip-border, #2B3E37)", borderRadius: 10, fontSize: 12.5, color: "var(--chart-tooltip-text, #F2F0E8)", boxShadow: "0 8px 24px rgba(0,0,0,0.2)" }} formatter={(v) => rupiah(v)} />
               </PieChart>
             </ResponsiveContainer>
           )}
@@ -1036,10 +1066,10 @@ function Dashboard({ transactions, categories, saldoAwal }) {
         <h4 className="bk-serif" style={{ fontSize: 15, margin: "0 0 12px" }}>Perkembangan saldo</h4>
         <ResponsiveContainer width="100%" height={200}>
           <LineChart data={saldoGrowth.slice(-60)}>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--paper-line)" vertical={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid, var(--paper-line))" vertical={false} fill="transparent" />
             <XAxis dataKey="date" stroke="var(--ink-dim)" fontSize={10} tickLine={false} axisLine={false} interval="preserveStartEnd" />
             <YAxis stroke="var(--ink-dim)" fontSize={11} tickFormatter={shortRupiah} tickLine={false} axisLine={false} width={54} />
-            <Tooltip contentStyle={{ background: "#1D2E28", border: "1px solid #2B3E37", borderRadius: 8, fontSize: 12.5 }} formatter={(v) => rupiah(v)} />
+            <Tooltip contentStyle={{ background: "var(--chart-tooltip-bg, #1D2E28)", border: "1px solid var(--chart-tooltip-border, #2B3E37)", borderRadius: 10, fontSize: 12.5, color: "var(--chart-tooltip-text, #F2F0E8)", boxShadow: "0 8px 24px rgba(0,0,0,0.2)" }} formatter={(v) => rupiah(v)} />
             <Line type="monotone" dataKey="saldo" stroke="#C9A24B" strokeWidth={2} dot={false} />
           </LineChart>
         </ResponsiveContainer>
@@ -1153,10 +1183,10 @@ function SummaryPage({ transactions, categories, canExport, onExportBlocked }) {
             <h4 className="bk-serif" style={{ fontSize: 15, margin: "0 0 12px" }}>Tren 6 bulan terakhir</h4>
             <ResponsiveContainer width="100%" height={220}>
               <LineChart data={trend}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--paper-line)" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid, var(--paper-line))" vertical={false} fill="transparent" />
                 <XAxis dataKey="label" stroke="var(--ink-dim)" fontSize={12} tickLine={false} axisLine={false} />
                 <YAxis stroke="var(--ink-dim)" fontSize={11} tickFormatter={shortRupiah} tickLine={false} axisLine={false} width={54} />
-                <Tooltip contentStyle={{ background: "#1D2E28", border: "1px solid #2B3E37", borderRadius: 8, fontSize: 12.5 }} formatter={(v) => rupiah(v)} />
+                <Tooltip contentStyle={{ background: "var(--chart-tooltip-bg, #1D2E28)", border: "1px solid var(--chart-tooltip-border, #2B3E37)", borderRadius: 10, fontSize: 12.5, color: "var(--chart-tooltip-text, #F2F0E8)", boxShadow: "0 8px 24px rgba(0,0,0,0.2)" }} formatter={(v) => rupiah(v)} />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
                 <Line type="monotone" dataKey="income" name="Pemasukan" stroke="#C9A24B" strokeWidth={2} dot={{ r: 3 }} />
                 <Line type="monotone" dataKey="expense" name="Pengeluaran" stroke="#C4735A" strokeWidth={2} dot={{ r: 3 }} />
@@ -1375,15 +1405,19 @@ export default function App() {
       <GlobalStyle />
 
       <aside className="bk-sidebar" style={{ width: 210, borderRight: "1px solid var(--paper-line)", padding: 18, flexShrink: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 22 }}>
-          <div style={{ width: 30, height: 30, borderRadius: 8, background: "var(--brass-soft)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Wallet size={16} color="var(--brass)" />
-          </div>
-          <span className="bk-serif" style={{ fontSize: 17, fontWeight: 600 }}>Buku Kas</span>
+        <div style={{ marginBottom: 22, padding: "0 2px" }}>
+          <LanilaLogo size={34} productName="Buku Kas" />
         </div>
 
         <nav style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-          {NAV.map(([key, label, Icon]) => (
+          <div className="ds-nav-group">Overview</div>
+          {NAV.filter(([k]) => k === "dashboard").map(([key, label, Icon]) => (
+            <div key={key} className={"bk-tab" + (tab === key ? " bk-tab-active" : "")} onClick={() => setTab(key)}>
+              <Icon size={16} /> {label}
+            </div>
+          ))}
+          <div className="ds-nav-group">Keuangan</div>
+          {NAV.filter(([k]) => k !== "dashboard").map(([key, label, Icon]) => (
             <div key={key} className={"bk-tab" + (tab === key ? " bk-tab-active" : "")} onClick={() => setTab(key)}>
               <Icon size={16} /> {label}
             </div>
@@ -1391,6 +1425,7 @@ export default function App() {
         </nav>
 
         <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 3 }}>
+          <div className="ds-nav-group">Support</div>
           <a href="/chat" style={{
             display: "flex", alignItems: "center", gap: 8, padding: "10px 12px",
             borderRadius: 8, color: "var(--ink-dim)", textDecoration: "none", fontSize: 13,
@@ -1453,6 +1488,12 @@ export default function App() {
         </button>
 
         <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--paper-line)" }}>
+          <div className="lanila-powered" style={{ marginBottom: 10, padding: "0 2px" }}>
+            Powered by <strong>Lanila</strong>
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <ThemeToggle />
+          </div>
           <div style={{ fontSize: 12, color: "var(--ink-dim)", marginBottom: 8 }}>
             {profile?.full_name || profile?.email || user?.email || "User"}
             <br />
@@ -1546,8 +1587,10 @@ export default function App() {
         <SubscriptionBanner transactions={transactions} />
         {tab === "dashboard" && (
           <>
-            <BudgetPanel transactions={transactions} onToast={showToast} />
             <Dashboard transactions={transactions} categories={categories} saldoAwal={saldoAwal} />
+            <div style={{ marginTop: 16 }}>
+              <BudgetPanel transactions={transactions} onToast={showToast} />
+            </div>
           </>
         )}
         {tab === "transactions" && (

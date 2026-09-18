@@ -1,0 +1,130 @@
+/**
+ * Buku Kas — Light mode polish (LANILA)
+ * Soft neutral canvas + white surfaces + transparent charts
+ */
+html[data-color-mode="light"] {
+  --ds-bg: #f4f6f3 !important;
+  --ds-surface: #ffffff !important;
+  --ds-elevated: #ffffff !important;
+  --ds-border: #dce3dd !important;
+  --ds-border-subtle: #e8eee9 !important;
+
+  --ds-text: #1b2420 !important;
+  --ds-text-secondary: #68736d !important;
+  --ds-text-muted: #8b9690 !important;
+
+  --ds-primary: #b8922f !important;
+  --ds-primary-hover: #9a7a28 !important;
+  --ds-primary-muted: rgba(184, 146, 47, 0.12) !important;
+  --ds-primary-text: #ffffff !important;
+
+  --ds-income: #b8922f !important;
+  --ds-expense: #b07860 !important;
+  --ds-success: #5a9a7a !important;
+  --ds-danger: #b07860 !important;
+
+  --paper: #f4f6f3 !important;
+  --paper-raised: #ffffff !important;
+  --paper-line: #dce3dd !important;
+  --ink: #1b2420 !important;
+  --ink-dim: #68736d !important;
+  --brass: #b8922f !important;
+  --brass-soft: rgba(184, 146, 47, 0.12) !important;
+  --clay: #b07860 !important;
+  --clay-soft: rgba(176, 120, 96, 0.12) !important;
+  --sage: #5a9a7a !important;
+  --btn-primary-text: #ffffff !important;
+
+  /* Chart */
+  --chart-grid: #e4ebe6;
+  --chart-tooltip-bg: #1a2b26;
+  --chart-tooltip-border: #2b3e37;
+  --chart-tooltip-text: #f2f0e8;
+}
+
+html[data-color-mode="light"] body,
+html[data-color-mode="light"] #root {
+  background: #f4f6f3 !important;
+}
+
+html[data-color-mode="light"] .bk-root {
+  --ink: #1b2420 !important;
+  --ink-dim: #68736d !important;
+  --paper: #f4f6f3 !important;
+  --paper-raised: #ffffff !important;
+  --paper-line: #dce3dd !important;
+  --brass: #b8922f !important;
+  --brass-soft: rgba(184, 146, 47, 0.12) !important;
+  --clay: #b07860 !important;
+  --clay-soft: rgba(176, 120, 96, 0.12) !important;
+  --sage: #5a9a7a !important;
+  --btn-primary-text: #ffffff !important;
+  background: #f4f6f3 !important;
+}
+
+/* Sidebar slightly tinted */
+html[data-color-mode="light"] .bk-sidebar {
+  background: #eef2ee !important;
+  border-right-color: #dce3dd !important;
+}
+
+html[data-color-mode="light"] .bk-card {
+  background: #ffffff !important;
+  border-color: #dce3dd !important;
+  box-shadow: 0 1px 2px rgba(27, 36, 32, 0.04);
+}
+
+/* Recharts: kill gray plot background */
+html[data-color-mode="light"] .recharts-wrapper,
+html[data-color-mode="light"] .recharts-surface {
+  background: transparent !important;
+}
+html[data-color-mode="light"] .recharts-cartesian-grid-bg {
+  fill: transparent !important;
+}
+html[data-color-mode="light"] .recharts-rectangle.recharts-tooltip-cursor {
+  fill: rgba(184, 146, 47, 0.06) !important;
+}
+
+/* Active nav */
+html[data-color-mode="light"] .bk-tab-active {
+  background: rgba(184, 146, 47, 0.12) !important;
+  color: #9a7a28 !important;
+}
+
+/* Pro banner */
+.sub-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--paper-line);
+  background: var(--paper-raised);
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: var(--ink);
+}
+html[data-color-mode="light"] .sub-banner {
+  background: #fffdf7;
+  border-color: #ead9a8;
+  color: #1b2420;
+}
+.sub-banner .badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--brass-soft);
+  color: var(--brass);
+}
+.sub-banner a {
+  color: var(--brass);
+  font-weight: 600;
+  text-decoration: none;
+  margin-left: auto;
+}
+.sub-banner a:hover {
+  text-decoration: underline;
+}

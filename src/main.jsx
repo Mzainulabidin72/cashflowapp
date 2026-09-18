@@ -1,4 +1,9 @@
 import React from 'react'
+import { ThemeProvider } from './context/ThemeContext'
+import './styles/theme.css'
+import './styles/light-mode.css'
+import './styles/lanila-tokens.css'
+import './styles/design-system.css'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import './index.css'
@@ -161,6 +166,7 @@ function PublicOnly({ children }) {
 
 function Root() {
   return (
+    <ThemeProvider>
     <AuthProvider>
       <BrowserRouter>
         <Routes>
@@ -309,6 +315,7 @@ function Root() {
         </Routes>
       </BrowserRouter>
     </AuthProvider>
+    </ThemeProvider>
   )
 }
 
