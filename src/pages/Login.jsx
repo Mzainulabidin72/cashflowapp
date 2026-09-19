@@ -2,27 +2,25 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import ThemeToggle from '../components/ThemeToggle'
-import '../styles/design-tokens.css'
 import '../styles/auth-layout.css'
-import '../styles/theme.css'
 
 function BrandLogo({ size = 48 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" fill="none" aria-hidden="true">
       <defs>
-        <linearGradient id="lanilaGrad" x1="8" y1="4" x2="40" y2="44">
-          <stop stopColor="#6366F1" />
+        <linearGradient id="lanilaGradLogin" x1="8" y1="4" x2="40" y2="44">
+          <stop stopColor="#3B82F6" />
           <stop offset="0.55" stopColor="#8B5CF6" />
-          <stop offset="1" stopColor="#C9A24B" />
+          <stop offset="1" stopColor="#7C4DFF" />
         </linearGradient>
       </defs>
       <path
         d="M14 8c0-1.1.9-2 2-2h6c1.1 0 2 .9 2 2v20.5c0 .3.1.6.3.8l7.4 7.4c.8.8.2 2.1-.9 2.1H16c-1.1 0-2-.9-2-2V8z"
-        fill="url(#lanilaGrad)"
+        fill="url(#lanilaGradLogin)"
       />
       <path
         d="M28 28.5c4.5-1 9.2.4 12.2 3.8 1 .1.6 2.2-.6 2.2-4.2 0-8.1-1.8-10.6-4.8-.5-.6-.3-1.2-.1-1.2z"
-        fill="url(#lanilaGrad)"
+        fill="url(#lanilaGradLogin)"
         opacity="0.9"
       />
     </svg>
@@ -78,7 +76,7 @@ export default function Login() {
   }
 
   return (
-    <div className="auth-page" data-theme="cashflow">
+    <div className="auth-page">
       <aside className="auth-brand" aria-label="Branding">
         <div className="auth-brand-inner">
           <div className="auth-logo-row">
@@ -102,23 +100,22 @@ export default function Login() {
 
       <main className="auth-panel">
         <div className="auth-card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <div className="auth-mobile-brand" style={{ marginBottom: 0 }}>
-              <BrandLogo size={32} />
-              <div className="auth-logo-text">
-                <span className="auth-logo-name" style={{ fontSize: 15 }}>Lanila</span>
-                <span className="auth-logo-product">Cash Flow</span>
-              </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+            <ThemeToggle />
+          </div>
+
+          <div className="auth-mobile-brand" style={{ marginBottom: 16 }}>
+            <BrandLogo size={32} />
+            <div className="auth-logo-text">
+              <span className="auth-logo-name" style={{ fontSize: 15 }}>Lanila</span>
+              <span className="auth-logo-product">Cash Flow</span>
             </div>
-            <ThemeToggle label={false} />
           </div>
 
           <h1>Masuk</h1>
           <p className="welcome">Selamat datang kembali. Silakan masuk ke akun Anda.</p>
 
-          {error && (
-            <div className="ds-alert ds-alert-error" role="alert">{error}</div>
-          )}
+          {error && <div className="ds-alert-error" role="alert">{error}</div>}
 
           <form onSubmit={handleSubmit} noValidate>
             <div className="ds-field">
@@ -155,7 +152,7 @@ export default function Login() {
                   onClick={() => setShowPw((v) => !v)}
                   aria-label={showPw ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
                 >
-                  {showPw ? '🙈' : '👁'}
+                  {showPw ? '👁' : '🙈'}
                 </button>
               </div>
               {fieldErr.password && <p className="ds-field-error">{fieldErr.password}</p>}

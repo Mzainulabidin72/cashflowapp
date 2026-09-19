@@ -1166,7 +1166,7 @@ function SummaryPage({ transactions, categories, canExport, onExportBlocked }) {
         </div>
       </div>
 
-      <div ref={captureRef} style={{ background: "#16231F", padding: 8, borderRadius: 12 }}>
+      <div ref={captureRef} style={{ background: "var(--paper)", padding: 8, borderRadius: 12 }}>
         <div className="bk-card" style={{ padding: "14px 18px", marginBottom: 16, display: "flex", gap: 10, alignItems: "flex-start", borderColor: "var(--brass)" }}>
           <TrendingUp size={18} color="var(--brass)" style={{ flexShrink: 0, marginTop: 2 }} />
           <div style={{ fontSize: 13.5, lineHeight: 1.5 }}>{insight}</div>
