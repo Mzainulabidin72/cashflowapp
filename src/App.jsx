@@ -7,7 +7,7 @@ import {
 import {
   LayoutGrid, List, Tags, PieChart as PieIcon, Plus, Pencil, Trash2,
   Search, X, ArrowUpCircle, ArrowDownCircle, Wallet, TrendingUp, TrendingDown,
-  Receipt, AlertCircle, Check, RotateCcw, ArrowUpDown, Lock} from "lucide-react";
+  Receipt, AlertCircle, Check, RotateCcw, Menu, ArrowUpDown, Lock} from "lucide-react";
 import { useAuth } from "./context/AuthContext";
 import {
   loadTransactions,
@@ -1248,6 +1248,7 @@ function SummaryPage({ transactions, categories, canExport, onExportBlocked }) {
 export default function App() {
   const { user, profile, signOut } = useAuth();
   const [tab, setTab] = useState("dashboard");
+  const [moreOpen, setMoreOpen] = useState(false);
   const [transactions, setTransactions] = useState([]);
   const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
   const [saldoAwal, setSaldoAwal] = useState(0);
@@ -1509,81 +1510,66 @@ export default function App() {
         </div>
       </aside>
 
-      <div
-        className="bk-mobile-tabs"
-        style={{
-          display: "none",
-          position: "fixed",
-          bottom: 0,
-          left: 0,
-          right: 0,
-          zIndex: 40,
-          background: "var(--paper-raised)",
-          borderTop: "1px solid var(--paper-line)",
-          padding: "6px 8px",
-          paddingBottom: "max(6px, env(safe-area-inset-bottom))",
-        }}
-      >
-        {NAV.map(([key, label, Icon]) => (
-          <div
-            key={key}
-            onClick={() => setTab(key)}
-            style={{
-              flex: 1,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: 2,
-              padding: "8px 0",
-              minHeight: 48,
-              color: tab === key ? "var(--brass)" : "var(--ink-dim)",
-              fontSize: 10.5,
-              cursor: "pointer",
-            }}
-          >
-            <Icon size={20} />
-            {label}
-          </div>
-        ))}
-        <a href="/chat" style={{
-          flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
-          gap: 2, padding: "8px 0", minHeight: 48, color: "var(--ink-dim)",
-          fontSize: 10.5, textDecoration: "none",
-        }}>Chat</a>
-        <a href="/complaints" style={{
-          flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
-          gap: 2, padding: "8px 0", minHeight: 48, color: "var(--ink-dim)",
-          fontSize: 10.5, textDecoration: "none",
-        }}>Keluhan</a>
-        <a href="/subscription" style={{
-          flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
-          gap: 2, padding: "8px 0", minHeight: 48, color: "var(--ink-dim)",
-          fontSize: 10.5, textDecoration: "none",
-        }}>Langganan</a>
-        {planInfo?.canUseProTools ? (
-          <a href="/pro-tools" style={{
-            flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
-            gap: 2, padding: "8px 0", minHeight: 48, color: "var(--ink-dim)",
-            fontSize: 10.5, textDecoration: "none",
-          }}>Pro</a>
-        ) : (
-          <button
-            type="button"
-            onClick={() => showToast("Tools Pro khusus paket Pro. Upgrade di Langganan.")}
-            style={{
-              flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
-              gap: 2, padding: "8px 0", minHeight: 48, color: "var(--ink-dim)",
-              fontSize: 10.5, background: "transparent", border: "none", cursor: "pointer",
-              opacity: 0.75,
-            }}
-          >
-            <Lock size={16} />
-            Pro
-          </button>
-        )}
+      
+      {/* MOBILE HEADER */}
+      <div className="bk-mobile-header">
+        <div className="brand">
+          <span>Lanila</span>
+          <span className="page-title">
+            · {tab === "dashboard" ? "Dashboard" : tab === "transactions" ? "Transaksi" : tab === "summary" ? "Ringkasan" : tab === "categories" ? "Kategori" : "Buku Kas"}
+          </span>
+        </div>
+        <button type="button" onClick={() => setMoreOpen(true)} aria-label="Menu lainnya">☰</button>
       </div>
 
-      <main style={{ flex: 1, padding: 22, paddingBottom: 70, maxWidth: 1180, margin: "0 auto", width: "100%" }}>
+      <nav className="bk-mobile-tabs" aria-label="Navigasi utama">
+        <button type="button" className={"nav-item" + (tab === "dashboard" ? " is-active" : "")} onClick={() => setTab("dashboard")}>
+          <LayoutGrid size={20} />
+          Home
+        </button>
+        <button type="button" className={"nav-item" + (tab === "transactions" ? " is-active" : "")} onClick={() => setTab("transactions")}>
+          <List size={20} />
+          Transaksi
+        </button>
+        <button type="button" className={"nav-item" + (tab === "summary" ? " is-active" : "")} onClick={() => setTab("summary")}>
+          <PieIcon size={20} />
+          Ringkasan
+        </button>
+        {planInfo?.canUseProTools ? (
+          <a href="/pro-tools" className="nav-item"><Wallet size={20} />Tools</a>
+        ) : (
+          <button type="button" className="nav-item" onClick={() => showToast("Tools Pro khusus paket Pro")}>
+            <Wallet size={20} />Tools
+          </button>
+        )}
+        <button type="button" className="nav-item" onClick={() => setMoreOpen(true)}>
+          <Menu size={20} />Lainnya
+        </button>
+      </nav>
+
+      {moreOpen && (
+        <div className="bk-more-sheet-bg" onClick={() => setMoreOpen(false)}>
+          <div className="bk-more-sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="sheet-title">Lainnya</div>
+            <button type="button" className="sheet-item" onClick={() => { setTab("categories"); setMoreOpen(false); }}>Kategori</button>
+            <a href="/chat" className="sheet-item" onClick={() => setMoreOpen(false)}>Chat Admin</a>
+            <a href="/complaints" className="sheet-item" onClick={() => setMoreOpen(false)}>Keluhan</a>
+            <a href="/subscription" className="sheet-item" onClick={() => setMoreOpen(false)}>Langganan</a>
+            {planInfo?.canUseProTools && (
+              <a href="/pro-tools" className="sheet-item" onClick={() => setMoreOpen(false)}>Tools Pro</a>
+            )}
+            <div className="sheet-title">Akun</div>
+            <div className="sheet-item" style={{ opacity: 0.85, cursor: "default" }}>
+              {profile?.full_name || user?.email}
+            </div>
+            <button type="button" className="sheet-item" style={{ color: "var(--clay)" }} onClick={() => { setMoreOpen(false); handleLogout(); }}>Logout</button>
+            <button type="button" className="sheet-item" onClick={() => setMoreOpen(false)}>Tutup</button>
+          </div>
+        </div>
+      )}
+
+
+      <main className="bk-main" style={{ flex: 1, padding: 22, paddingBottom: 70, maxWidth: 1180, margin: "0 auto", width: "100%" }}>
         <SubscriptionBanner transactions={transactions} />
         {tab === "dashboard" && (
           <>
@@ -1626,7 +1612,23 @@ export default function App() {
         )}
       </main>
 
-      {toast && (
+      
+        {tab === "transactions" && (
+          <button
+            type="button"
+            className="bk-fab"
+            aria-label="Tambah transaksi"
+            onClick={() => {
+              const btn = document.querySelector('[data-add-tx]');
+              if (btn) btn.click();
+              else showToast("Buka form tambah di atas");
+            }}
+          >
+            <Plus size={22} />
+          </button>
+        )}
+
+        {toast && (
         <div className="bk-toast">
           <Check size={14} color="var(--brass)" />
           {toast}

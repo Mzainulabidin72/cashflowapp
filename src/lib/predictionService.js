@@ -21,20 +21,20 @@ export function monthlyTotals(transactions) {
 
 export function simpleForecast(transactions, monthsAhead = 3) {
   const rows = monthlyTotals(transactions)
-  const last = rows.slice(-6) // max 6 bulan terakhir
+  const last = rows.slice(-6)
   if (!last.length) {
     return {
       avgIncome: 0,
       avgExpense: 0,
       avgNet: 0,
       months: [],
+      basedOn: 0,
       message: 'Belum cukup data transaksi.',
     }
   }
   const avgIncome = last.reduce((s, r) => s + r.income, 0) / last.length
   const avgExpense = last.reduce((s, r) => s + r.expense, 0) / last.length
   const avgNet = avgIncome - avgExpense
-
   const base = last[last.length - 1].month
   const [y, m] = base.split('-').map(Number)
   const months = []
