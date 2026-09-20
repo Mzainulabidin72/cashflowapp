@@ -1,63 +1,98 @@
 /**
- * LANILA mark — L + leaf/flow (brand kit)
- * Variants: full | mark | mono
+ * LANILA official mark — L + leaf/flow
+ * Brand colors: #3B82F6 → #8B5CF6 → #7C4DFF
  */
 export default function LanilaLogo({
   size = 40,
-  variant = 'full', // full | mark | mono
   showWordmark = true,
   productName = null,
+  mono = false,
   className = '',
 }) {
-  const gradId = `lanila-g-${size}-${variant}`
-  const fill = variant === 'mono' ? 'currentColor' : `url(#${gradId})`
+  const gid = `lanilaGrad-${size}-${mono ? 'm' : 'c'}`
 
   const Mark = (
     <svg
       width={size}
       height={size}
-      viewBox="0 0 48 48"
+      viewBox="0 0 64 64"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden={showWordmark ? true : undefined}
       role={showWordmark ? undefined : 'img'}
       aria-label={showWordmark ? undefined : 'Lanila'}
+      style={{ display: 'block', flexShrink: 0 }}
     >
-      {variant !== 'mono' && (
+      {!mono && (
         <defs>
-          <linearGradient id={gradId} x1="6" y1="4" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+          <linearGradient id={gid} x1="8" y1="4" x2="56" y2="60" gradientUnits="userSpaceOnUse">
             <stop stopColor="#3B82F6" />
-            <stop offset="0.55" stopColor="#6366F1" />
+            <stop offset="0.45" stopColor="#6366F1" />
             <stop offset="1" stopColor="#7C4DFF" />
           </linearGradient>
         </defs>
       )}
-      {/* Geometric L + organic leaf curve */}
+      {/* Vertical stem of L */}
       <path
-        d="M12 6c0-1.1.9-2 2-2h7c1.1 0 2 .9 2 2v22c0 .4.2.8.5 1.1l8.2 8.2c.9.9.3 2.4-1 2.4H14c-1.1 0-2-.9-2-2V6z"
-        fill={fill}
+        d="M16 10c0-2.2 1.8-4 4-4h10c2.2 0 4 1.8 4 4v28c0 .8.3 1.5.9 2.1l11 11c1.6 1.6.5 4.4-1.8 4.4H20c-2.2 0-4-1.8-4-4V10z"
+        fill={mono ? 'currentColor' : `url(#${gid})`}
       />
+      {/* Leaf / flow curve */}
       <path
-        d="M27 29c5-1.2 10.5.2 14 4.2.9 1-.2 2.5-1.4 2.2-4.5-.8-8.8-2.8-11.8-5.8-.6-.6-.3-1.4-.2-1.4.1 0 .1 0 .4-.2z"
-        fill={fill}
-        opacity={variant === 'mono' ? 0.85 : 0.95}
+        d="M36 38c7.5-1.8 15.5.5 20.5 6.2 1.5 1.7-.4 4.2-2.5 3.8-7-.8-13.5-4-17.5-8.8-.8-.9-.3-1.8-.5-1.2z"
+        fill={mono ? 'currentColor' : `url(#${gid})`}
+        opacity={0.95}
       />
     </svg>
   )
 
   if (!showWordmark) {
-    return <span className={className}>{Mark}</span>
+    return <span className={className} style={{ display: 'inline-flex' }}>{Mark}</span>
   }
 
   return (
-    <div className={`lanila-lockup ${className}`}>
+    <div
+      className={className}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        minWidth: 0,
+      }}
+    >
       {Mark}
-      <div className="lanila-lockup-text">
-        <span className="lanila-wordmark">Lanila</span>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 }}>
+        <span
+          style={{
+            fontWeight: 700,
+            fontSize: Math.max(14, size * 0.42),
+            letterSpacing: '-0.03em',
+            color: 'var(--ink, #EDEAE0)',
+            lineHeight: 1.15,
+          }}
+        >
+          Lanila
+        </span>
         {productName ? (
-          <span className="lanila-product-name">{productName}</span>
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 500,
+              color: 'var(--ink-dim, #A9B0A8)',
+            }}
+          >
+            {productName}
+          </span>
         ) : (
-          <span className="lanila-tagline">Better Tools · Brighter Days</span>
+          <span
+            style={{
+              fontSize: 10,
+              color: 'var(--ink-dim, #A9B0A8)',
+              letterSpacing: '0.02em',
+            }}
+          >
+            Better Tools · Brighter Days
+          </span>
         )}
       </div>
     </div>

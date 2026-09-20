@@ -1513,11 +1513,8 @@ export default function App() {
       
       {/* MOBILE HEADER */}
       <div className="bk-mobile-header">
-        <div className="brand">
-          <span>Lanila</span>
-          <span className="page-title">
-            · {tab === "dashboard" ? "Dashboard" : tab === "transactions" ? "Transaksi" : tab === "summary" ? "Ringkasan" : tab === "categories" ? "Kategori" : "Buku Kas"}
-          </span>
+        <div className="brand" style={{ gap: 8 }}>
+          <LanilaLogo size={28} productName="Buku Kas" />
         </div>
         <button type="button" onClick={() => setMoreOpen(true)} aria-label="Menu lainnya">☰</button>
       </div>
