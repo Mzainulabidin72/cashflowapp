@@ -3,13 +3,11 @@ import { supabase } from './supabase'
 /** Ringkasan untuk badge di Admin Home */
 export async function getAdminBadges() {
   const [chatRes, openCompRes, pendingPayRes, pendingSubRes] = await Promise.all([
-    supabase
-      .from('chat_conversations')
-      .select('id', { count: 'exact', head: true }),
+    supabase.from('chat_conversations').select('id', { count: 'exact', head: true }),
     supabase
       .from('complaints')
       .select('id', { count: 'exact', head: true })
-      .in('status', ['OPEN', 'IN_PROGRESS']),
+      .in('status', ['OPEN', 'IN_PROGRESS', 'open', 'in_progress']),
     supabase
       .from('subscription_payments')
       .select('id', { count: 'exact', head: true })
@@ -20,7 +18,6 @@ export async function getAdminBadges() {
       .eq('status', 'pending'),
   ])
 
-  // jangan hard-fail kalau 1 query error
   return {
     conversations: chatRes.error ? 0 : chatRes.count || 0,
     openComplaints: openCompRes.error ? 0 : openCompRes.count || 0,

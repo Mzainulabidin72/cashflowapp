@@ -1,15 +1,16 @@
+
 import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import AdminShell from '../components/admin/AdminShell'
 import {
   listAllComplaints,
-  updateComplaintStatus,
   listComplaintMessages,
   sendComplaintMessage,
+  updateComplaintStatus,
   subscribeComplaintMessages,
 } from '../lib/complaintService'
-
-const STATUSES = ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED']
+import { getAdminBadges } from '../lib/adminStatsService'
+import { runExpiryJobs } from '../lib/expiryService'
 
 export default function AdminComplaints() {
   const { user } = useAuth()
@@ -18,307 +19,135 @@ export default function AdminComplaints() {
   const [messages, setMessages] = useState([])
   const [text, setText] = useState('')
   const [loading, setLoading] = useState(true)
-  const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
+  const [badges, setBadges] = useState({})
   const bottomRef = useRef(null)
 
   async function loadList() {
     const data = await listAllComplaints()
-    setItems(data)
+    setItems(data || [])
   }
 
   useEffect(() => {
     let cancelled = false
-    async function init() {
+    ;(async () => {
       setLoading(true)
       try {
+        await runExpiryJobs()
         await loadList()
+        const b = await getAdminBadges()
+        if (!cancelled) setBadges(b)
       } catch (e) {
-        console.error(e)
         if (!cancelled) setError(e.message || 'Gagal memuat')
       } finally {
         if (!cancelled) setLoading(false)
       }
-    }
-    init()
-    return () => {
-      cancelled = true
-    }
+    })()
+    return () => { cancelled = true }
   }, [])
 
   useEffect(() => {
-    if (!selectedId) {
-      setMessages([])
-      return
-    }
+    if (!selectedId) { setMessages([]); return }
     let unsub = null
     let cancelled = false
-
-    async function load() {
+    ;(async () => {
       try {
         const msgs = await listComplaintMessages(selectedId)
         if (cancelled) return
         setMessages(msgs || [])
         unsub = subscribeComplaintMessages(selectedId, (row) => {
-          setMessages((prev) => {
-            if (prev.some((m) => m.id === row.id)) return prev
-            return [...prev, row]
-          })
+          setMessages((prev) => prev.some((m) => m.id === row.id) ? prev : [...prev, row])
         })
       } catch (e) {
-        console.error(e)
-        if (!cancelled) setError(e.message || 'Gagal memuat pesan')
+        if (!cancelled) setError(e.message)
       }
-    }
-    load()
-    return () => {
-      cancelled = true
-      if (unsub) unsub()
-    }
+    })()
+    return () => { cancelled = true; if (unsub) unsub() }
   }, [selectedId])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  async function handleStatus(status) {
-    if (!selectedId) return
-    try {
-      await updateComplaintStatus(selectedId, status)
-      await loadList()
-    } catch (e) {
-      console.error(e)
-      setError(e.message || 'Gagal update status')
-    }
-  }
+  const selected = items.find((c) => c.id === selectedId)
 
   async function handleSend(e) {
     e.preventDefault()
-    if (!selectedId || !text.trim() || sending) return
-    setSending(true)
+    if (!selectedId || !text.trim()) return
     try {
       await sendComplaintMessage(selectedId, user.id, text)
       setText('')
     } catch (e) {
-      console.error(e)
-      setError(e.message || 'Gagal kirim')
-    } finally {
-      setSending(false)
+      setError(e.message)
     }
   }
 
-  const selected = items.find((c) => c.id === selectedId)
+  async function setStatus(status) {
+    try {
+      await updateComplaintStatus(selectedId, status)
+      await loadList()
+    } catch (e) {
+      setError(e.message)
+    }
+  }
 
   return (
-    <div style={styles.wrap}>
-      <div style={{ marginBottom: 12 }}>
-        <Link to="/admin" style={styles.back}>
-          ← Kembali ke Admin
-        </Link>
-      </div>
-      <h2 style={styles.title}>Keluhan Client</h2>
-      {error && <p style={styles.err}>{error}</p>}
-
-      <div style={styles.layout}>
-        <div style={styles.list}>
-          {loading && <p style={styles.muted}>Memuat...</p>}
-          {!loading && items.length === 0 && (
-            <p style={styles.muted}>Belum ada keluhan</p>
-          )}
+    <AdminShell title="Keluhan" badges={badges}>
+      {error && <p className="ad-err">{error}</p>}
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 320px) 1fr', gap: 12 }} className="ad-chat-grid">
+        <div className="ad-card" style={{ margin: 0 }}>
+          <h2>Daftar keluhan</h2>
+          {loading && <p className="ad-muted">Memuat...</p>}
           {items.map((c) => (
             <button
               key={c.id}
               type="button"
               onClick={() => setSelectedId(c.id)}
               style={{
-                ...styles.item,
-                borderColor: selectedId === c.id ? '#C9A24B' : '#2B3E37',
+                display: 'block', width: '100%', textAlign: 'left', padding: 10, marginBottom: 4,
+                borderRadius: 8,
+                border: selectedId === c.id ? '1px solid var(--ad-accent)' : '1px solid transparent',
+                background: selectedId === c.id ? 'rgba(91,124,250,0.12)' : 'transparent',
+                color: 'var(--ad-text)', cursor: 'pointer',
               }}
             >
-              <div style={{ fontWeight: 600, fontSize: 13 }}>
-                {c.profile?.full_name || c.profile?.email || 'User'}
-              </div>
-              <div style={{ fontSize: 12, marginTop: 2 }}>{c.subject}</div>
-              <div style={{ fontSize: 11, color: '#A9B0A8', marginTop: 4 }}>
-                {c.status}
+              <div style={{ fontWeight: 600, fontSize: 13 }}>{c.subject}</div>
+              <div className="ad-muted" style={{ fontSize: 11 }}>
+                {c.status} · {c.profile?.email || c.user_id?.slice(0, 8)}
               </div>
             </button>
           ))}
         </div>
-
-        <div style={styles.pane}>
-          {!selectedId ? (
-            <p style={{ ...styles.muted, padding: 16 }}>Pilih keluhan</p>
-          ) : (
+        <div className="ad-card" style={{ margin: 0 }}>
+          {!selected && <p className="ad-muted">Pilih keluhan.</p>}
+          {selected && (
             <>
-              <div style={styles.head}>
-                <div>
-                  {selected?.subject}
-                  <div style={{ fontSize: 12, color: '#A9B0A8', fontWeight: 400 }}>
-                    {selected?.profile?.full_name || selected?.profile?.email}
-                  </div>
-                </div>
-                <select
-                  style={styles.select}
-                  value={selected?.status || 'OPEN'}
-                  onChange={(e) => handleStatus(e.target.value)}
-                >
-                  {STATUSES.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
+              <h2>{selected.subject}</h2>
+              <p className="ad-muted">{selected.profile?.full_name || selected.profile?.email} · {selected.status}</p>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+                {['OPEN', 'IN_PROGRESS', 'CLOSED'].map((s) => (
+                  <button key={s} type="button" className="ad-btn ad-btn-ghost" onClick={() => setStatus(s)}>{s}</button>
+                ))}
               </div>
-              <div style={styles.messages}>
-                {messages.map((m) => {
-                  const mine = m.sender_id === user?.id
-                  return (
-                    <div
-                      key={m.id}
-                      style={{
-                        ...styles.bubble,
-                        alignSelf: mine ? 'flex-end' : 'flex-start',
-                        background: mine ? '#C9A24B' : '#16231F',
-                        color: mine ? '#1B160A' : '#EDEAE0',
-                      }}
-                    >
-                      <div style={{ fontSize: 14 }}>{m.message}</div>
-                      <div style={{ fontSize: 11, marginTop: 4, opacity: 0.7 }}>
-                        {m.created_at
-                          ? new Date(m.created_at).toLocaleString('id-ID')
-                          : ''}
-                      </div>
-                    </div>
-                  )
-                })}
+              <div style={{ maxHeight: 320, overflow: 'auto' }}>
+                {messages.map((m) => (
+                  <div key={m.id} style={{ marginBottom: 8, fontSize: 13 }}>
+                    <span className="ad-muted">{m.sender_id === user?.id ? 'Anda' : 'User'} · </span>
+                    {m.message}
+                  </div>
+                ))}
                 <div ref={bottomRef} />
               </div>
-              <form onSubmit={handleSend} style={styles.form}>
-                <input
-                  style={styles.input}
-                  value={text}
-                  onChange={(e) => setText(e.target.value)}
-                  placeholder="Balas keluhan..."
-                  disabled={sending}
-                />
-                <button style={styles.btn} type="submit" disabled={sending}>
-                  Kirim
-                </button>
+              <form onSubmit={handleSend} style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Balas..."
+                  style={{ flex: 1, padding: 10, borderRadius: 8, border: '1px solid var(--ad-border)', background: 'var(--ad-bg)', color: 'var(--ad-text)' }} />
+                <button className="ad-btn ad-btn-primary" type="submit">Kirim</button>
               </form>
             </>
           )}
         </div>
       </div>
-    </div>
+      <style>{`@media (max-width:800px){ .ad-chat-grid{grid-template-columns:1fr!important} }`}</style>
+    </AdminShell>
   )
-}
-
-const styles = {
-  wrap: {
-    minHeight: '100vh',
-    background: '#16231F',
-    color: '#EDEAE0',
-    padding: 20,
-  },
-  back: {
-    color: '#C9A24B',
-    textDecoration: 'none',
-    fontSize: 13,
-    fontWeight: 600,
-  },
-  title: {
-    fontFamily: 'Georgia, serif',
-    fontSize: 22,
-    color: '#C9A24B',
-    margin: '0 0 14px',
-  },
-  muted: { color: '#A9B0A8', fontSize: 13 },
-  err: { color: '#C4735A', fontSize: 13 },
-  layout: {
-    display: 'grid',
-    gridTemplateColumns: 'minmax(180px, 280px) 1fr',
-    gap: 12,
-    minHeight: 'calc(100vh - 120px)',
-  },
-  list: {
-    background: '#1A2924',
-    border: '1px solid #2B3E37',
-    borderRadius: 12,
-    padding: 10,
-    overflowY: 'auto',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 8,
-  },
-  item: {
-    textAlign: 'left',
-    border: '1px solid #2B3E37',
-    borderRadius: 8,
-    padding: 10,
-    background: '#1D2E28',
-    color: '#EDEAE0',
-    cursor: 'pointer',
-  },
-  pane: {
-    background: '#1A2924',
-    border: '1px solid #2B3E37',
-    borderRadius: 12,
-    display: 'flex',
-    flexDirection: 'column',
-  },
-  head: {
-    padding: '12px 14px',
-    borderBottom: '1px solid #2B3E37',
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 10,
-    flexWrap: 'wrap',
-  },
-  select: {
-    background: '#16231F',
-    color: '#EDEAE0',
-    border: '1px solid #2B3E37',
-    borderRadius: 6,
-    padding: '6px 8px',
-  },
-  messages: {
-    flex: 1,
-    overflowY: 'auto',
-    padding: 14,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 8,
-    minHeight: 280,
-  },
-  bubble: {
-    maxWidth: '75%',
-    padding: '10px 12px',
-    borderRadius: 12,
-  },
-  form: {
-    display: 'flex',
-    gap: 8,
-    padding: 12,
-    borderTop: '1px solid #2B3E37',
-  },
-  input: {
-    flex: 1,
-    padding: '10px 12px',
-    borderRadius: 8,
-    border: '1px solid #2B3E37',
-    background: '#16231F',
-    color: '#EDEAE0',
-    fontSize: 14,
-  },
-  btn: {
-    background: '#C9A24B',
-    color: '#1B160A',
-    border: 'none',
-    borderRadius: 8,
-    padding: '10px 16px',
-    fontWeight: 600,
-    cursor: 'pointer',
-  },
 }

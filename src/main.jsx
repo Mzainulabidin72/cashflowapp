@@ -214,7 +214,7 @@ function Root() {
             path="/chat"
             element={
               <RoleRoute allow={['user']}>
-                <ClientChat />
+                <App />
               </RoleRoute>
             }
           />
@@ -222,7 +222,7 @@ function Root() {
             path="/complaints"
             element={
               <RoleRoute allow={['user']}>
-                <ClientComplaints />
+                <App />
               </RoleRoute>
             }
           />
@@ -230,7 +230,7 @@ function Root() {
             path="/subscription"
             element={
               <RoleRoute allow={['user']}>
-                <ClientSubscription />
+                <App />
               </RoleRoute>
             }
           />
@@ -238,7 +238,7 @@ function Root() {
             path="/pro-tools"
             element={
               <RoleRoute allow={['user']}>
-                <ProTools />
+                <App />
               </RoleRoute>
             }
           />
