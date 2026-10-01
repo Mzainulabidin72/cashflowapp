@@ -1,3 +1,4 @@
+import ThemeToggle from '../components/ThemeToggle'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getSuperAdminReport } from '../lib/reportService'
@@ -32,14 +33,17 @@ export default function SuperAdminReports() {
   }, [])
 
   return (
-    <div style={styles.wrap}>
+    <div className="sa-page" style={styles.wrap}>
       <div style={{ marginBottom: 12 }}>
         <Link to="/super-admin" style={styles.back}>
           ← Kembali ke Super Admin
         </Link>
       </div>
 
-      <h2 style={styles.title}>Laporan Sistem</h2>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+        <h2 style={styles.title}>Laporan Sistem</h2>
+        <ThemeToggle label />
+      </div>
       {error && <p style={styles.err}>{error}</p>}
       {loading && <p style={styles.muted}>Memuat...</p>}
 

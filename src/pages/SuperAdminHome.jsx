@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
+import ThemeToggle from '../components/ThemeToggle'
 import {
   listAllProfiles,
   updateProfileRole,
@@ -121,7 +122,10 @@ export default function SuperAdminHome() {
   }
 
   return (
-    <div style={styles.wrap}>
+    <div className="sa-page" style={styles.wrap}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+        <ThemeToggle label />
+      </div>
       <header style={styles.header}>
         <div>
           <h1 style={styles.title}>Super Admin</h1>

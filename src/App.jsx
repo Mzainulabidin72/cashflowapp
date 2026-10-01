@@ -1,3 +1,4 @@
+import { useLocation, useNavigate } from "react-router-dom";
 import ThemeToggle from "./components/ThemeToggle";
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
@@ -22,6 +23,13 @@ import {
   saveSaldoAwal,
 } from "./lib/dataService";
 import SubscriptionBanner from "./components/SubscriptionBanner";
+import ClientChat from "./pages/ClientChat";
+import SummaryPage from "./components/SummaryPage";
+import TransactionsPage from "./components/TransactionsPage";
+import ClientComplaints from "./pages/ClientComplaints";
+import ClientSubscription from "./pages/ClientSubscription";
+import ProTools from "./pages/ProTools";
+
 import BudgetPanel from "./components/BudgetPanel";
 import LanilaLogo from "./components/brand/LanilaLogo";
 import { getUserPlanInfo, countTxThisMonth } from "./lib/planAccess";
@@ -677,167 +685,8 @@ function ConfirmDialog({ title, body, onConfirm, onClose }) {
 /* ---------------------------------------------------------------
    Transactions page — search, filter, sort, CRUD
 ------------------------------------------------------------------*/
-function TransactionsPage({ transactions, categories, onAdd, onEdit, onDelete, canExport, onExportBlocked }) {
-  const [query, setQuery] = useState("");
-  const [typeFilter, setTypeFilter] = useState("all");
-  const [catFilter, setCatFilter] = useState("all");
-  const [period, setPeriod] = useState("all");
-  const [customFrom, setCustomFrom] = useState("");
-  const [customTo, setCustomTo] = useState("");
-  const [sortKey, setSortKey] = useState("date");
-  const [sortDir, setSortDir] = useState("desc");
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editing, setEditing] = useState(null);
-  const [deleting, setDeleting] = useState(null);
+/* TransactionsPage → ./components/TransactionsPage */
 
-  const allCats = [...categories.income, ...categories.expense];
-
-  const filtered = useMemo(() => {
-    let list = transactions.filter((t) => {
-      if (typeFilter !== "all" && t.type !== typeFilter) return false;
-      if (catFilter !== "all" && t.category !== catFilter) return false;
-      if (period !== "all" && !inRange(t.date, period, customFrom, customTo)) return false;
-      if (query) {
-        const q = query.toLowerCase();
-        if (!t.description.toLowerCase().includes(q) && !(t.note || "").toLowerCase().includes(q) && !t.category.toLowerCase().includes(q)) return false;
-      }
-      return true;
-    });
-    list.sort((a, b) => {
-      let cmp = 0;
-      if (sortKey === "date") cmp = a.date.localeCompare(b.date);
-      else if (sortKey === "amount") cmp = a.amount - b.amount;
-      return sortDir === "asc" ? cmp : -cmp;
-    });
-    return list;
-  }, [transactions, typeFilter, catFilter, period, customFrom, customTo, query, sortKey, sortDir]);
-
-  function toggleSort(key) {
-    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    else { setSortKey(key); setSortDir("desc"); }
-  }
-
-  function handleExport() {
-    if (!canExport) {
-      if (onExportBlocked) onExportBlocked();
-      return;
-    }
-    exportTransactionsCsv(filtered.length ? filtered : transactions);
-  }
-
-  return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginBottom: 16 }}>
-        <h2 className="bk-serif" style={{ fontSize: 22, margin: 0 }}>Transaksi</h2>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button className="bk-btn bk-btn-ghost" onClick={handleExport} title={canExport ? "Export CSV" : "Khusus Basic/Pro"}>
-            Export CSV{!canExport ? " 🔒" : ""}
-          </button>
-          <button className="bk-btn bk-btn-primary" onClick={() => { setEditing(null); setModalOpen(true); }}>
-            <Plus size={16} /> Tambah transaksi
-          </button>
-        </div>
-      </div>
-
-      <div className="bk-card" style={{ padding: 14, marginBottom: 14, display: "flex", flexDirection: "column", gap: 10 }}>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-          <div style={{ position: "relative", flex: "1 1 220px" }}>
-            <Search size={14} style={{ position: "absolute", left: 10, top: 10, color: "var(--ink-dim)" }} />
-            <input className="bk-input" style={{ paddingLeft: 30 }} placeholder="Cari deskripsi, catatan, kategori…"
-              value={query} onChange={(e) => setQuery(e.target.value)} />
-          </div>
-          <select className="bk-select" style={{ width: 150 }} value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
-            <option value="all">Semua jenis</option>
-            <option value="income">Pemasukan</option>
-            <option value="expense">Pengeluaran</option>
-          </select>
-          <select className="bk-select" style={{ width: 180 }} value={catFilter} onChange={(e) => setCatFilter(e.target.value)}>
-            <option value="all">Semua kategori</option>
-            {allCats.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </div>
-        <PeriodFilter value={period} onChange={setPeriod} customFrom={customFrom} customTo={customTo} onCustomFrom={setCustomFrom} onCustomTo={setCustomTo} />
-      </div>
-
-      <div className="bk-card bk-scroll" style={{ overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5, minWidth: 680 }}>
-          <thead>
-            <tr style={{ borderBottom: "1px solid var(--paper-line)", textAlign: "left" }}>
-              <Th onClick={() => toggleSort("date")} active={sortKey === "date"} dir={sortDir}>Tanggal</Th>
-              <th style={thStyle}>Deskripsi</th>
-              <th style={thStyle}>Kategori</th>
-              <th style={thStyle}>Metode</th>
-              <Th onClick={() => toggleSort("amount")} active={sortKey === "amount"} dir={sortDir} align="right">Nominal</Th>
-              <th style={{ ...thStyle, textAlign: "center" }}>Aksi</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 && (
-              <tr><td colSpan={6} style={{ padding: 28, textAlign: "center", color: "var(--ink-dim)" }}>Tidak ada transaksi yang cocok.</td></tr>
-            )}
-            {filtered.map((t) => (
-              <tr key={t.id} className="bk-row" style={{ borderBottom: "1px solid var(--paper-line)" }}>
-                <td style={{ ...tdStyle }} className="bk-mono">{fmtDateLong(t.date)}</td>
-                <td style={tdStyle}>
-                  <div>{t.description}</div>
-                  {t.note && <div style={{ fontSize: 11.5, color: "var(--ink-dim)" }}>{t.note}</div>}
-                </td>
-                <td style={tdStyle}>
-                  <span style={{ fontSize: 12, padding: "2px 8px", borderRadius: 999, background: "var(--paper-line)" }}>{t.category}</span>
-                </td>
-                <td style={{ ...tdStyle, color: "var(--ink-dim)" }}>{t.method || "—"}</td>
-                <td style={{ ...tdStyle, textAlign: "right" }} className="bk-mono">
-                  <span className={t.type === "income" ? "bk-badge-in" : "bk-badge-out"}>
-                    {t.type === "income" ? "+" : "−"}{rupiah(t.amount)}
-                  </span>
-                </td>
-                <td style={{ ...tdStyle, textAlign: "center" }}>
-                  <button className="bk-btn bk-btn-ghost" style={{ padding: 5 }} onClick={() => { setEditing(t); setModalOpen(true); }}><Pencil size={13} /></button>
-                  <button className="bk-btn bk-btn-ghost" style={{ padding: 5, marginLeft: 4 }} onClick={() => setDeleting(t)}><Trash2 size={13} color="var(--clay)" /></button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <div style={{ fontSize: 12, color: "var(--ink-dim)", marginTop: 8 }}>{filtered.length} dari {transactions.length} transaksi</div>
-
-      {modalOpen && (
-        <TransactionModal
-          initial={editing}
-          categories={categories}
-          onClose={() => setModalOpen(false)}
-          onSave={(t) => { editing ? onEdit(t) : onAdd(t); setModalOpen(false); }}
-        />
-      )}
-      {deleting && (
-        <ConfirmDialog
-          title="Hapus transaksi?"
-          body={`"${deleting.description}" senilai ${rupiah(deleting.amount)} akan dihapus permanen.`}
-          onClose={() => setDeleting(null)}
-          onConfirm={() => { onDelete(deleting.id); setDeleting(null); }}
-        />
-      )}
-    </div>
-  );
-}
-
-const thStyle = { padding: "10px 12px", fontSize: 12, color: "var(--ink-dim)", fontWeight: 500 };
-const tdStyle = { padding: "10px 12px", verticalAlign: "top" };
-
-function Th({ children, onClick, active, dir, align }) {
-  return (
-    <th style={{ ...thStyle, cursor: "pointer", textAlign: align || "left" }} onClick={onClick}>
-      <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: active ? "var(--brass)" : "var(--ink-dim)" }}>
-        {children} <ArrowUpDown size={11} style={{ opacity: active ? 1 : 0.4 }} />
-      </span>
-    </th>
-  );
-}
-
-/* ---------------------------------------------------------------
-   Category manager
-------------------------------------------------------------------*/
 function CategoriesPage({ categories, transactions, onChange, canEdit }) {
   const [newIncomeCat, setNewIncomeCat] = useState("");
   const [newExpenseCat, setNewExpenseCat] = useState("");
@@ -1078,169 +927,8 @@ function Dashboard({ transactions, categories, saldoAwal }) {
   );
 }
 
-/* ---------------------------------------------------------------
-   Ringkasan Keuangan (summary / insights)
-------------------------------------------------------------------*/
-function SummaryPage({ transactions, categories, canExport, onExportBlocked }) {
-  const captureRef = useRef(null);
-  const [exportingImg, setExportingImg] = useState(false);
 
-  const byMonth = useMemo(() => {
-    const map = {};
-    transactions.forEach((t) => {
-      const key = t.date.slice(0, 7);
-      if (!map[key]) map[key] = { key, income: 0, expense: 0, count: 0 };
-      map[key][t.type] += t.amount;
-      map[key].count += 1;
-    });
-    return Object.values(map).sort((a, b) => b.key.localeCompare(a.key));
-  }, [transactions]);
-
-  const currentMonthKey = todayISO().slice(0, 7);
-  const currentMonthExpenses = transactions.filter((t) => t.type === "expense" && t.date.slice(0, 7) === currentMonthKey);
-  const catTotalsThisMonth = {};
-  currentMonthExpenses.forEach((t) => { catTotalsThisMonth[t.category] = (catTotalsThisMonth[t.category] || 0) + t.amount; });
-  const topCatThisMonth = Object.entries(catTotalsThisMonth).sort((a, b) => b[1] - a[1])[0];
-
-  const allExpenses = transactions.filter((t) => t.type === "expense");
-  const totalExpenseAll = allExpenses.reduce((s, t) => s + t.amount, 0);
-  const totalIncomeAll = transactions.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
-  const avgExpense = allExpenses.length ? totalExpenseAll / allExpenses.length : 0;
-
-  const catTotalsAll = {};
-  allExpenses.forEach((t) => { catTotalsAll[t.category] = (catTotalsAll[t.category] || 0) + t.amount; });
-  const topCatsAll = Object.entries(catTotalsAll).sort((a, b) => b[1] - a[1]).slice(0, 5);
-
-  const trend = byMonth.slice(0, 6).reverse().map((m) => ({ ...m, label: MONTH_LABEL(m.key), net: m.income - m.expense }));
-
-  let insight = "Belum ada cukup data pengeluaran bulan ini untuk memberi insight.";
-  if (topCatThisMonth) {
-    insight = `Pengeluaran terbesar bulan ini berasal dari kategori ${topCatThisMonth[0]}, senilai ${rupiah(topCatThisMonth[1])}.`;
-  }
-
-  function handleExportSummary() {
-    if (!canExport) {
-      if (onExportBlocked) onExportBlocked();
-      return;
-    }
-    exportSummaryCsv(transactions);
-  }
-
-  async function handleExportImage() {
-    if (!canExport) {
-      if (onExportBlocked) onExportBlocked();
-      return;
-    }
-    try {
-      setExportingImg(true);
-      const stamp = new Date().toISOString().slice(0, 10);
-      await exportElementAsPng(captureRef.current, `bukukas-ringkasan-${stamp}.png`);
-    } catch (e) {
-      console.error(e);
-      alert("Gagal export gambar. Coba lagi.");
-    } finally {
-      setExportingImg(false);
-    }
-  }
-
-  return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginBottom: 16 }}>
-        <h2 className="bk-serif" style={{ fontSize: 22, margin: 0 }}>Ringkasan keuangan</h2>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }} data-export-ignore="true">
-          <button
-            className="bk-btn bk-btn-ghost"
-            onClick={handleExportSummary}
-            title={canExport ? "Export ringkasan CSV" : "Khusus Basic/Pro"}
-          >
-            Export CSV{!canExport ? " 🔒" : ""}
-          </button>
-          <button
-            className="bk-btn bk-btn-ghost"
-            onClick={handleExportImage}
-            disabled={exportingImg}
-            title={canExport ? "Export ringkasan sebagai gambar PNG" : "Khusus Basic/Pro"}
-          >
-            {exportingImg ? "Menyimpan..." : `Export gambar${!canExport ? " 🔒" : ""}`}
-          </button>
-        </div>
-      </div>
-
-      <div ref={captureRef} style={{ background: "var(--paper)", padding: 8, borderRadius: 12 }}>
-        <div className="bk-card" style={{ padding: "14px 18px", marginBottom: 16, display: "flex", gap: 10, alignItems: "flex-start", borderColor: "var(--brass)" }}>
-          <TrendingUp size={18} color="var(--brass)" style={{ flexShrink: 0, marginTop: 2 }} />
-          <div style={{ fontSize: 13.5, lineHeight: 1.5 }}>{insight}</div>
-        </div>
-
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
-          <StatCard label="Total pemasukan (semua waktu)" value={rupiah(totalIncomeAll)} tone="up" icon={ArrowUpCircle} />
-          <StatCard label="Total pengeluaran (semua waktu)" value={rupiah(totalExpenseAll)} tone="down" icon={ArrowDownCircle} />
-          <StatCard label="Rata-rata per transaksi keluar" value={rupiah(avgExpense)} icon={Receipt} />
-        </div>
-
-        <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
-          <div className="bk-card" style={{ padding: 16, flex: "2 1 420px", minWidth: 320 }}>
-            <h4 className="bk-serif" style={{ fontSize: 15, margin: "0 0 12px" }}>Tren 6 bulan terakhir</h4>
-            <ResponsiveContainer width="100%" height={220}>
-              <LineChart data={trend}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid, var(--paper-line))" vertical={false} fill="transparent" />
-                <XAxis dataKey="label" stroke="var(--ink-dim)" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis stroke="var(--ink-dim)" fontSize={11} tickFormatter={shortRupiah} tickLine={false} axisLine={false} width={54} />
-                <Tooltip contentStyle={{ background: "var(--chart-tooltip-bg, #1D2E28)", border: "1px solid var(--chart-tooltip-border, #2B3E37)", borderRadius: 10, fontSize: 12.5, color: "var(--chart-tooltip-text, #F2F0E8)", boxShadow: "0 8px 24px rgba(0,0,0,0.2)" }} formatter={(v) => rupiah(v)} />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Line type="monotone" dataKey="income" name="Pemasukan" stroke="#C9A24B" strokeWidth={2} dot={{ r: 3 }} />
-                <Line type="monotone" dataKey="expense" name="Pengeluaran" stroke="#C4735A" strokeWidth={2} dot={{ r: 3 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="bk-card" style={{ padding: 16, flex: "1 1 260px", minWidth: 240 }}>
-            <h4 className="bk-serif" style={{ fontSize: 15, margin: "0 0 12px" }}>5 kategori pengeluaran terbesar</h4>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {topCatsAll.map(([name, val]) => (
-                <div key={name}>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, marginBottom: 4 }}>
-                    <span>{name}</span>
-                    <span className="bk-mono" style={{ color: "var(--ink-dim)" }}>{rupiah(val)}</span>
-                  </div>
-                  <div style={{ height: 6, background: "var(--paper)", borderRadius: 999 }}>
-                    <div style={{ height: "100%", width: `${topCatsAll[0] && topCatsAll[0][1] ? (val / topCatsAll[0][1]) * 100 : 0}%`, background: colorForCategory(name, categories.expense), borderRadius: 999 }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="bk-card bk-scroll" style={{ overflowX: "auto", marginTop: 14 }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 480 }}>
-            <thead>
-              <tr style={{ borderBottom: "1px solid var(--paper-line)", textAlign: "left" }}>
-                <th style={thStyle}>Bulan</th>
-                <th style={{ ...thStyle, textAlign: "right" }}>Pemasukan</th>
-                <th style={{ ...thStyle, textAlign: "right" }}>Pengeluaran</th>
-                <th style={{ ...thStyle, textAlign: "right" }}>Selisih</th>
-                <th style={{ ...thStyle, textAlign: "right" }}>Transaksi</th>
-              </tr>
-            </thead>
-            <tbody>
-              {byMonth.map((m) => (
-                <tr key={m.key} className="bk-row" style={{ borderBottom: "1px solid var(--paper-line)" }}>
-                  <td style={tdStyle}>{MONTH_LABEL(m.key)}</td>
-                  <td style={{ ...tdStyle, textAlign: "right" }} className="bk-mono">{rupiah(m.income)}</td>
-                  <td style={{ ...tdStyle, textAlign: "right" }} className="bk-mono">{rupiah(m.expense)}</td>
-                  <td style={{ ...tdStyle, textAlign: "right" }} className="bk-mono">
-                    <span style={{ color: m.income - m.expense >= 0 ? "var(--brass)" : "var(--clay)" }}>{rupiah(m.income - m.expense)}</span>
-                  </td>
-                  <td style={{ ...tdStyle, textAlign: "right" }}>{m.count}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-}
+/* SummaryPage diimport dari ./components/SummaryPage */
 
 /* ---------------------------------------------------------------
    Main App
@@ -1249,6 +937,30 @@ export default function App() {
   const { user, profile, signOut } = useAuth();
   const [tab, setTab] = useState("dashboard");
   const [moreOpen, setMoreOpen] = useState(false);
+
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const p = location.pathname || "";
+    const map = {
+      "/chat": "chat",
+      "/complaints": "complaints",
+      "/subscription": "subscription",
+      "/pro-tools": "pro-tools",
+    };
+    if (map[p]) setTab(map[p]);
+  }, [location.pathname]);
+
+  function goTab(key) {
+    setTab(key);
+    if (key === "chat") navigate("/chat");
+    else if (key === "complaints") navigate("/complaints");
+    else if (key === "subscription") navigate("/subscription");
+    else if (key === "pro-tools") navigate("/pro-tools");
+    else navigate("/dashboard");
+  }
+
   const [transactions, setTransactions] = useState([]);
   const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
   const [saldoAwal, setSaldoAwal] = useState(0);
@@ -1256,6 +968,8 @@ export default function App() {
   const [toast, setToast] = useState("");
   const [confirmReset, setConfirmReset] = useState(false);
   const [planInfo, setPlanInfo] = useState(null);
+  const [txModalOpen, setTxModalOpen] = useState(false);
+  const [txEditing, setTxEditing] = useState(null);
   const toastTimer = useRef(null);
 
   function showToast(msg) {
@@ -1427,23 +1141,31 @@ export default function App() {
 
         <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 3 }}>
           <div className="ds-nav-group">Support</div>
-          <a href="/chat" style={{
-            display: "flex", alignItems: "center", gap: 8, padding: "10px 12px",
-            borderRadius: 8, color: "var(--ink-dim)", textDecoration: "none", fontSize: 13,
-          }}>Chat Admin</a>
-          <a href="/complaints" style={{
-            display: "flex", alignItems: "center", gap: 8, padding: "10px 12px",
-            borderRadius: 8, color: "var(--ink-dim)", textDecoration: "none", fontSize: 13,
-          }}>Keluhan</a>
-          <a href="/subscription" style={{
-            display: "flex", alignItems: "center", gap: 8, padding: "10px 12px",
-            borderRadius: 8, color: "var(--ink-dim)", textDecoration: "none", fontSize: 13,
-          }}>Langganan</a>
+          <div
+            className={"bk-tab" + (tab === "chat" ? " bk-tab-active" : "")}
+            onClick={() => goTab("chat")}
+          >
+            Chat Admin
+          </div>
+          <div
+            className={"bk-tab" + (tab === "complaints" ? " bk-tab-active" : "")}
+            onClick={() => goTab("complaints")}
+          >
+            Keluhan
+          </div>
+          <div
+            className={"bk-tab" + (tab === "subscription" ? " bk-tab-active" : "")}
+            onClick={() => goTab("subscription")}
+          >
+            Langganan
+          </div>
           {planInfo?.canUseProTools ? (
-            <a href="/pro-tools" style={{
-              display: "flex", alignItems: "center", gap: 8, padding: "10px 12px",
-              borderRadius: 8, color: "var(--ink-dim)", textDecoration: "none", fontSize: 13,
-            }}>Tools Pro</a>
+            <div
+            className={"bk-tab" + (tab === "pro-tools" ? " bk-tab-active" : "")}
+            onClick={() => goTab("pro-tools")}
+          >
+            Tools Pro
+          </div>
           ) : (
             <button
               type="button"
@@ -1513,8 +1235,11 @@ export default function App() {
       
       {/* MOBILE HEADER */}
       <div className="bk-mobile-header">
-        <div className="brand" style={{ gap: 8 }}>
-          <LanilaLogo size={28} productName="Buku Kas" />
+        <div className="brand">
+          <span>Lanila</span>
+          <span className="page-title">
+            · {tab === "dashboard" ? "Dashboard" : tab === "transactions" ? "Transaksi" : tab === "summary" ? "Ringkasan" : tab === "categories" ? "Kategori" : "Buku Kas"}
+          </span>
         </div>
         <button type="button" onClick={() => setMoreOpen(true)} aria-label="Menu lainnya">☰</button>
       </div>
@@ -1549,11 +1274,11 @@ export default function App() {
           <div className="bk-more-sheet" onClick={(e) => e.stopPropagation()}>
             <div className="sheet-title">Lainnya</div>
             <button type="button" className="sheet-item" onClick={() => { setTab("categories"); setMoreOpen(false); }}>Kategori</button>
-            <a href="/chat" className="sheet-item" onClick={() => setMoreOpen(false)}>Chat Admin</a>
-            <a href="/complaints" className="sheet-item" onClick={() => setMoreOpen(false)}>Keluhan</a>
-            <a href="/subscription" className="sheet-item" onClick={() => setMoreOpen(false)}>Langganan</a>
+            <button type="button" className="sheet-item" onClick={() => { goTab("chat"); setMoreOpen(false); }}>Chat Admin</button>
+            <button type="button" className="sheet-item" onClick={() => { goTab("complaints"); setMoreOpen(false); }}>Keluhan</button>
+            <button type="button" className="sheet-item" onClick={() => { goTab("subscription"); setMoreOpen(false); }}>Langganan</button>
             {planInfo?.canUseProTools && (
-              <a href="/pro-tools" className="sheet-item" onClick={() => setMoreOpen(false)}>Tools Pro</a>
+              <button type="button" className="sheet-item" onClick={() => { goTab("pro-tools"); setMoreOpen(false); }}>Tools Pro</button>
             )}
             <div className="sheet-title">Akun</div>
             <div className="sheet-item" style={{ opacity: 0.85, cursor: "default" }}>
@@ -1580,12 +1305,27 @@ export default function App() {
           <TransactionsPage
             transactions={transactions}
             categories={categories}
-            onAdd={addTransaction}
-            onEdit={editTransaction}
-            onDelete={deleteTransaction}
+            planInfo={planInfo}
+            onAdd={() => {
+              setTxEditing(null);
+              setTxModalOpen(true);
+            }}
+            onEdit={(t) => {
+              setTxEditing(t);
+              setTxModalOpen(true);
+            }}
+            onDelete={async (t) => {
+              try {
+                await deleteTransaction(t.id);
+              } catch (e) {
+                showToast(e.message || "Gagal hapus");
+              }
+            }}
+            onUpgrade={() => (typeof goTab === "function" ? goTab("subscription") : setTab("subscription"))}
+            exportTransactionsCsv={exportTransactionsCsv}
             canExport={!!planInfo?.canUseExport}
             onExportBlocked={() =>
-              showToast("Export CSV khusus paket Basic/Pro. Silakan upgrade di menu Langganan.")
+              showToast("Export CSV khusus Basic/Pro.")
             }
           />
         )}
@@ -1602,11 +1342,46 @@ export default function App() {
             transactions={transactions}
             categories={categories}
             canExport={!!planInfo?.canUseExport}
+            canUseFullAnalytics={!!planInfo?.canUseFullAnalytics}
             onExportBlocked={() =>
               showToast("Export ringkasan khusus paket Basic/Pro. Silakan upgrade di menu Langganan.")
             }
+            onUpgradePro={() => (typeof goTab === "function" ? goTab("subscription") : setTab("subscription"))}
+            exportSummaryCsv={typeof exportSummaryCsv === "function" ? exportSummaryCsv : undefined}
+            exportElementAsPng={typeof exportElementAsPng === "function" ? exportElementAsPng : undefined}
           />
         )}
+
+        {tab === "chat" && (
+          <div className="bk-support-embed">
+            <ClientChat />
+          </div>
+        )}
+        {tab === "complaints" && (
+          <div className="bk-support-embed">
+            <ClientComplaints />
+          </div>
+        )}
+        {tab === "subscription" && (
+          <div className="bk-support-embed">
+            <ClientSubscription />
+          </div>
+        )}
+        {tab === "pro-tools" && (
+          <div className="bk-support-embed">
+            {planInfo?.canUseProTools ? (
+              <ProTools />
+            ) : (
+              <div className="bk-card" style={{ padding: 24, textAlign: "center" }}>
+                <p style={{ marginBottom: 12 }}>Tools Pro khusus paket Pro.</p>
+                <button type="button" className="bk-btn" onClick={() => goTab("subscription")}>
+                  Lihat langganan
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
       </main>
 
       
@@ -1630,6 +1405,31 @@ export default function App() {
           <Check size={14} color="var(--brass)" />
           {toast}
         </div>
+      )}
+
+      
+      {txModalOpen && (
+        <TransactionModal
+          initial={txEditing}
+          categories={categories}
+          onClose={() => {
+            setTxModalOpen(false);
+            setTxEditing(null);
+          }}
+          onSave={async (form) => {
+            try {
+              if (txEditing?.id) {
+                await editTransaction({ ...form, id: txEditing.id });
+              } else {
+                await addTransaction(form);
+              }
+              setTxModalOpen(false);
+              setTxEditing(null);
+            } catch (e) {
+              showToast(e.message || "Gagal simpan");
+            }
+          }}
+        />
       )}
 
       {confirmReset && (

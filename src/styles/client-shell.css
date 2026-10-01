@@ -1,0 +1,156 @@
+/* Client Support / Account shell — konsisten dengan Lanila */
+.cshell-page {
+  min-height: 100vh;
+  background: var(--paper, #16231f);
+  color: var(--ink, #edeae0);
+  font-family: Inter, system-ui, sans-serif;
+}
+.cshell-layout {
+  display: flex;
+  min-height: 100vh;
+}
+.cshell-sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  background: var(--paper-raised, #1d2e28);
+  border-right: 1px solid var(--paper-line, #2b3e37);
+  padding: 14px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.cshell-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px 14px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--paper-line, #2b3e37);
+  text-decoration: none;
+  color: inherit;
+}
+.cshell-brand strong {
+  display: block;
+  font-size: 14px;
+  letter-spacing: -0.02em;
+}
+.cshell-brand span {
+  font-size: 11px;
+  color: var(--ink-dim, #a9b0a8);
+}
+.cshell-nav-group {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-dim, #a9b0a8);
+  padding: 12px 10px 4px;
+}
+.cshell-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: var(--ink-dim, #a9b0a8);
+  text-decoration: none;
+  font-size: 13.5px;
+  font-weight: 500;
+  border: none;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+.cshell-link:hover {
+  background: var(--brass-soft, rgba(201, 162, 75, 0.12));
+  color: var(--ink, #edeae0);
+}
+.cshell-link.is-active {
+  background: var(--brass-soft, rgba(201, 162, 75, 0.16));
+  color: var(--brass, #c9a24b);
+  font-weight: 600;
+}
+.cshell-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.cshell-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--paper-line, #2b3e37);
+  background: var(--paper-raised, #1d2e28);
+  flex-wrap: wrap;
+}
+.cshell-topbar h1 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.cshell-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.cshell-content {
+  flex: 1;
+  padding: 0;
+  /* halaman child boleh punya padding sendiri; default empty */
+}
+.cshell-content > .cs-page,
+.cshell-content > .cp-page,
+.cshell-content > .sub-page,
+.cshell-content > .ft-page {
+  min-height: auto;
+  background: transparent;
+  padding-top: 16px;
+}
+.cshell-back {
+  color: var(--brass, #c9a24b);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
+}
+.cshell-mobile-nav {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  background: var(--paper-raised, #1d2e28);
+  border-top: 1px solid var(--paper-line, #2b3e37);
+  padding: 4px 4px max(6px, env(safe-area-inset-bottom));
+}
+.cshell-mobile-nav a {
+  flex: 1;
+  text-align: center;
+  padding: 10px 2px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--ink-dim, #a9b0a8);
+  text-decoration: none;
+}
+.cshell-mobile-nav a.is-active {
+  color: var(--brass, #c9a24b);
+}
+@media (max-width: 820px) {
+  .cshell-sidebar {
+    display: none;
+  }
+  .cshell-mobile-nav {
+    display: flex;
+  }
+  .cshell-content {
+    padding-bottom: 72px;
+  }
+}

@@ -2,13 +2,13 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import ThemeToggle from '../components/ThemeToggle'
-import '../styles/auth-layout.css'
+import '../styles/login-auth.css'
 
-function BrandLogo({ size = 48 }) {
+function BrandLogo({ size = 40 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" fill="none" aria-hidden="true">
       <defs>
-        <linearGradient id="lanilaGradLogin" x1="8" y1="4" x2="40" y2="44">
+        <linearGradient id="lanilaGradLoginIsolated" x1="8" y1="4" x2="40" y2="44">
           <stop stopColor="#3B82F6" />
           <stop offset="0.55" stopColor="#8B5CF6" />
           <stop offset="1" stopColor="#7C4DFF" />
@@ -16,11 +16,11 @@ function BrandLogo({ size = 48 }) {
       </defs>
       <path
         d="M14 8c0-1.1.9-2 2-2h6c1.1 0 2 .9 2 2v20.5c0 .3.1.6.3.8l7.4 7.4c.8.8.2 2.1-.9 2.1H16c-1.1 0-2-.9-2-2V8z"
-        fill="url(#lanilaGradLogin)"
+        fill="url(#lanilaGradLoginIsolated)"
       />
       <path
         d="M28 28.5c4.5-1 9.2.4 12.2 3.8 1 .1.6 2.2-.6 2.2-4.2 0-8.1-1.8-10.6-4.8-.5-.6-.3-1.2-.1-1.2z"
-        fill="url(#lanilaGradLogin)"
+        fill="url(#lanilaGradLoginIsolated)"
         opacity="0.9"
       />
     </svg>
@@ -43,7 +43,7 @@ export default function Login() {
   function validate() {
     const next = { email: '', password: '' }
     if (!email.trim()) next.email = 'Email wajib diisi.'
-    else if (!isValidEmail(email)) next.email = 'Format email tidak valid.'
+    else if (!isValidEmail(email)) next.email = 'Masukkan email yang valid.'
     if (!password) next.password = 'Kata sandi wajib diisi.'
     setFieldErr(next)
     return !next.email && !next.password
@@ -62,7 +62,7 @@ export default function Login() {
       if (err) {
         setError(
           /invalid|credentials|password|email/i.test(err.message)
-            ? 'Email atau kata sandi yang Anda masukkan salah.'
+            ? 'Email atau kata sandi salah.'
             : err.message
         )
         return
@@ -76,53 +76,72 @@ export default function Login() {
   }
 
   return (
-    <div className="auth-page">
-      <aside className="auth-brand" aria-label="Branding">
-        <div className="auth-brand-inner">
-          <div className="auth-logo-row">
+    <div className="login-page">
+      <div className="login-theme-fixed">
+        <ThemeToggle />
+      </div>
+
+      <aside className="login-brand" aria-label="Branding">
+        <div className="login-brand-inner">
+          <div className="login-logo-row">
             <BrandLogo size={48} />
-            <div className="auth-logo-text">
-              <span className="auth-logo-name">Lanila</span>
-              <span className="auth-logo-product">Cash Flow / Buku Kas</span>
+            <div>
+              <span className="login-logo-name">Lanila</span>
+              <span className="login-logo-product">Cash Flow / Buku Kas</span>
             </div>
           </div>
-          <h2 className="auth-tagline">Kelola keuangan dengan lebih mudah dan teratur.</h2>
-          <p className="auth-desc">
-            Better tools · brighter days — catat, pantau, dan rencanakan cash flow dalam satu tempat.
+          <h2 className="login-tagline">
+            Kelola keuangan dengan
+            <br />
+            lebih mudah dan teratur.
+          </h2>
+          <p className="login-desc">
+            Better tools · brighter days — catat, pantau, dan rencanakan cash flow dalam satu
+            tempat.
           </p>
-          <ul className="auth-benefits">
-            <li><span className="check">✓</span> Catat pemasukan &amp; pengeluaran harian</li>
-            <li><span className="check">✓</span> Pantau cash flow dan ringkasan bulanan</li>
-            <li><span className="check">✓</span> Langganan, chat support, dan tools Pro</li>
+          <ul className="login-benefits">
+            <li>
+              <span className="check">✓</span> Catat pemasukan &amp; pengeluaran harian
+            </li>
+            <li>
+              <span className="check">✓</span> Pantau cash flow dan ringkasan bulanan
+            </li>
+            <li>
+              <span className="check">✓</span> Langganan, chat support, dan tools Pro
+            </li>
           </ul>
         </div>
       </aside>
 
-      <main className="auth-panel">
-        <div className="auth-card">
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
-            <ThemeToggle />
-          </div>
-
-          <div className="auth-mobile-brand" style={{ marginBottom: 16 }}>
-            <BrandLogo size={32} />
-            <div className="auth-logo-text">
-              <span className="auth-logo-name" style={{ fontSize: 15 }}>Lanila</span>
-              <span className="auth-logo-product">Cash Flow</span>
+      <main className="login-panel">
+        <div className="login-card">
+          <div className="login-card-logo">
+            <BrandLogo size={36} />
+            <div>
+              <span className="login-logo-name" style={{ fontSize: 16 }}>
+                Lanila
+              </span>
+              <span className="login-logo-product">Cash Flow</span>
             </div>
           </div>
 
-          <h1>Masuk</h1>
-          <p className="welcome">Selamat datang kembali. Silakan masuk ke akun Anda.</p>
+          <h1 className="login-title">Masuk</h1>
+          <p className="login-subtitle">
+            Selamat datang kembali. Silakan masuk ke akun Anda.
+          </p>
 
-          {error && <div className="ds-alert-error" role="alert">{error}</div>}
+          {error && (
+            <div className="login-alert" role="alert">
+              {error}
+            </div>
+          )}
 
-          <form onSubmit={handleSubmit} noValidate>
-            <div className="ds-field">
-              <label className="ds-label" htmlFor="login-email">Email</label>
+          <form className="login-form" onSubmit={handleSubmit} noValidate>
+            <div className="login-field">
+              <label htmlFor="login-email">Email</label>
               <input
                 id="login-email"
-                className="ds-input"
+                className="login-input"
                 type="email"
                 autoComplete="email"
                 placeholder="nama@email.com"
@@ -130,15 +149,19 @@ export default function Login() {
                 disabled={loading}
                 onChange={(e) => setEmail(e.target.value)}
               />
-              {fieldErr.email && <p className="ds-field-error">{fieldErr.email}</p>}
+              {fieldErr.email && (
+                <span className="login-field-error" role="alert">
+                  {fieldErr.email}
+                </span>
+              )}
             </div>
 
-            <div className="ds-field">
-              <label className="ds-label" htmlFor="login-password">Kata sandi</label>
-              <div className="ds-input-wrap">
+            <div className="login-field">
+              <label htmlFor="login-password">Kata sandi</label>
+              <div className="login-password-wrapper">
                 <input
                   id="login-password"
-                  className="ds-input"
+                  className="login-input"
                   type={showPw ? 'text' : 'password'}
                   autoComplete="current-password"
                   placeholder="Masukkan kata sandi"
@@ -148,27 +171,31 @@ export default function Login() {
                 />
                 <button
                   type="button"
-                  className="ds-icon-btn"
+                  className="login-password-toggle"
                   onClick={() => setShowPw((v) => !v)}
                   aria-label={showPw ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
                 >
-                  {showPw ? '👁' : '🙈'}
+                  {showPw ? '🙈' : '👁'}
                 </button>
               </div>
-              {fieldErr.password && <p className="ds-field-error">{fieldErr.password}</p>}
+              {fieldErr.password && (
+                <span className="login-field-error" role="alert">
+                  {fieldErr.password}
+                </span>
+              )}
             </div>
 
-            <div className="ds-row-between">
-              <Link to="/forgot-password" className="ds-link">Lupa kata sandi?</Link>
+            <div className="login-forgot">
+              <Link to="/forgot-password">Lupa kata sandi?</Link>
             </div>
 
-            <button className="ds-btn" type="submit" disabled={loading}>
+            <button className="login-submit" type="submit" disabled={loading}>
               {loading ? 'Memproses...' : 'Masuk'}
             </button>
           </form>
 
-          <p className="auth-footer">
-            Belum punya akun? <Link to="/register" className="ds-link">Daftar</Link>
+          <p className="login-footer">
+            Belum punya akun? <Link to="/register">Daftar</Link>
           </p>
         </div>
       </main>
