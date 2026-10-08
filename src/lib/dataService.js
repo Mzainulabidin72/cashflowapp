@@ -49,6 +49,52 @@ export async function insertTransaction(userId, t) {
   }
 }
 
+/**
+ * Simpan banyak transaksi sekaligus (dipecah per 100 baris).
+ * Jika salah satu batch gagal, error dilempar dengan `error.partial` berisi
+ * transaksi yang sudah berhasil tersimpan sebelumnya.
+ */
+export async function insertTransactionsBulk(userId, list, chunkSize = 100) {
+  const saved = []
+  for (let i = 0; i < list.length; i += chunkSize) {
+    const rows = list.slice(i, i + chunkSize).map((t) => ({
+      user_id: userId,
+      date: t.date,
+      type: t.type,
+      category: t.category,
+      amount: t.amount,
+      description: t.description,
+      note: t.note || '',
+      method: t.method || '',
+    }))
+
+    const { data, error } = await supabase
+      .from('transactions')
+      .insert(rows)
+      .select()
+
+    if (error) {
+      const err = new Error(error.message || 'Gagal menyimpan transaksi')
+      err.partial = saved
+      throw err
+    }
+
+    saved.push(
+      ...(data || []).map((d) => ({
+        id: d.id,
+        date: d.date,
+        type: d.type,
+        category: d.category,
+        amount: Number(d.amount),
+        description: d.description,
+        note: d.note || '',
+        method: d.method || '',
+      }))
+    )
+  }
+  return saved
+}
+
 export async function updateTransactionDb(userId, t) {
   const { error } = await supabase
     .from('transactions')

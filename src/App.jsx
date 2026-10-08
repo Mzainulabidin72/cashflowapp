@@ -16,6 +16,7 @@ import {
   loadSaldoAwal,
   seedUserData,
   insertTransaction,
+  insertTransactionsBulk,
   updateTransactionDb,
   deleteTransactionDb,
   clearUserTransactions,
@@ -1042,6 +1043,36 @@ export default function App() {
     }
   }
 
+  // Dipanggil dari modal Import CSV. Mengembalikan jumlah transaksi yang tersimpan.
+  async function importTransactions(list, newCategories) {
+    if (!user) throw new Error("Sesi login tidak ditemukan.");
+
+    const addIncome = newCategories?.income || [];
+    const addExpense = newCategories?.expense || [];
+    if (addIncome.length || addExpense.length) {
+      if (planInfo && !planInfo.canUseCustomCategory) {
+        throw new Error("Kategori custom hanya untuk paket Basic/Pro.");
+      }
+      const next = {
+        income: [...categories.income, ...addIncome],
+        expense: [...categories.expense, ...addExpense],
+      };
+      await saveCategories(user.id, next);
+      setCategories(next);
+    }
+
+    try {
+      const saved = await insertTransactionsBulk(user.id, list);
+      setTransactions((prev) => [...saved, ...prev]);
+      showToast(`${saved.length} transaksi diimpor.`);
+      return saved.length;
+    } catch (e) {
+      // Batch awal yang sudah masuk tetap ditampilkan agar tidak "hilang" dari layar
+      if (e.partial?.length) setTransactions((prev) => [...e.partial, ...prev]);
+      throw e;
+    }
+  }
+
   async function editTransaction(t) {
     try {
       await updateTransactionDb(user.id, t);
@@ -1323,6 +1354,7 @@ export default function App() {
             }}
             onUpgrade={() => (typeof goTab === "function" ? goTab("subscription") : setTab("subscription"))}
             exportTransactionsCsv={exportTransactionsCsv}
+            onImport={importTransactions}
             canExport={!!planInfo?.canUseExport}
             onExportBlocked={() =>
               showToast("Export CSV khusus Basic/Pro.")

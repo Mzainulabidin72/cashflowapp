@@ -4,11 +4,13 @@ import {
   Search,
   Lock,
   Download,
+  Upload,
   Pencil,
   Trash2,
   ArrowUpDown,
   X,
 } from 'lucide-react'
+import ImportTransactionsModal from './ImportTransactionsModal'
 
 function rupiah(n) {
   return 'Rp ' + Math.round(Number(n) || 0).toLocaleString('id-ID')
@@ -50,6 +52,7 @@ function countTxThisMonth(transactions) {
  * - planInfo: { planName, rank, canUseExport, canUseCustomCategory, canUseUnlimitedTx, canUseFullAnalytics, txLimitPerMonth }
  * - onUpgrade(plan) — e.g. setTab subscription
  * - exportTransactionsCsv(list)
+ * - onImport(list, newCategories) → Promise<number> — simpan hasil import ke database
  * - TransactionModal — if null, onAdd/onEdit should open App modal
  */
 export default function TransactionsPage({
@@ -61,6 +64,7 @@ export default function TransactionsPage({
   planInfo,
   onUpgrade,
   exportTransactionsCsv,
+  onImport,
   // legacy
   canExport: canExportProp,
   onExportBlocked,
@@ -87,6 +91,7 @@ export default function TransactionsPage({
   const [sortKey, setSortKey] = useState('date')
   const [sortDir, setSortDir] = useState('desc')
   const [upgradeModal, setUpgradeModal] = useState(null) // { tier, title, body }
+  const [importOpen, setImportOpen] = useState(false)
 
   const allCats = [...(categories.income || []), ...(categories.expense || [])]
 
@@ -163,6 +168,18 @@ export default function TransactionsPage({
     if (typeof exportTransactionsCsv === 'function') {
       exportTransactionsCsv(filtered.length ? filtered : transactions)
     }
+  }
+
+  // Import terbuka untuk semua paket (kuota paket Gratis tetap dihormati).
+  // Untuk membatasi ke Basic, set planInfo.canUseImport = false di planAccess.js.
+  const canImport = typeof onImport === 'function' && (planInfo?.canUseImport ?? true)
+
+  function handleImport() {
+    if (!canImport) {
+      needBasic('Import transaksi dari CSV tersedia di paket Basic dan Pro.')
+      return
+    }
+    setImportOpen(true)
   }
 
   function handleAdd() {
@@ -245,6 +262,19 @@ export default function TransactionsPage({
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {typeof onImport === 'function' && (
+            <button
+              type="button"
+              className="bk-btn bk-btn-ghost"
+              onClick={handleImport}
+              style={{ opacity: canImport ? 1 : 0.75 }}
+            >
+              {canImport ? <Upload size={14} /> : <Lock size={14} />} Import CSV/Excel
+              {!canImport && (
+                <span style={{ fontSize: 10, marginLeft: 4 }}>Basic</span>
+              )}
+            </button>
+          )}
           <button
             type="button"
             className="bk-btn bk-btn-ghost"
@@ -592,6 +622,17 @@ export default function TransactionsPage({
           .tx-mobile { display: flex !important; }
         }
       `}</style>
+
+      {/* Import modal */}
+      {importOpen && (
+        <ImportTransactionsModal
+          existing={transactions}
+          categories={categories}
+          planInfo={planInfo}
+          onImport={onImport}
+          onClose={() => setImportOpen(false)}
+        />
+      )}
 
       {/* Upgrade modal */}
       {upgradeModal && (
