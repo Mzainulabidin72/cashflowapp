@@ -1,3 +1,5 @@
+import { usePrefs, periodLabel } from '../lib/prefs'
+
 /** Compact period selector — dropdown instead of heavy button row */
 export default function PeriodFilter({
   value,
@@ -7,10 +9,12 @@ export default function PeriodFilter({
   onCustomFrom,
   onCustomTo,
 }) {
+  const prefs = usePrefs()
+  const monthLabel = periodLabel(prefs.monthStartDay)
   const opts = [
     ['today', 'Hari ini'],
     ['week', 'Minggu ini'],
-    ['month', 'Bulan ini'],
+    ['month', monthLabel ? `Bulan ini (${monthLabel})` : 'Bulan ini'],
     ['year', 'Tahun ini'],
     ['custom', 'Custom'],
     ['all', 'Semua'],

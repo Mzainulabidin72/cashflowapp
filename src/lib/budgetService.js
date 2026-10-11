@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { inCurrentPeriod } from './prefs'
 
 export async function loadBudget(userId) {
   const { data, error } = await supabase
@@ -22,10 +23,9 @@ export async function saveBudget(userId, monthlyLimit) {
   return value
 }
 
-/** Total pengeluaran bulan berjalan (YYYY-MM) */
+/** Total pengeluaran "bulan ini" (mengikuti tanggal mulai bulan di Pengaturan) */
 export function sumExpenseThisMonth(transactions) {
-  const key = new Date().toISOString().slice(0, 7)
   return (transactions || [])
-    .filter((t) => t.type === 'expense' && String(t.date || '').startsWith(key))
+    .filter((t) => t.type === 'expense' && inCurrentPeriod(t.date))
     .reduce((s, t) => s + (Number(t.amount) || 0), 0)
 }

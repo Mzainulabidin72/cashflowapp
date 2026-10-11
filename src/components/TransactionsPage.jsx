@@ -11,10 +11,9 @@ import {
   X,
 } from 'lucide-react'
 import ImportTransactionsModal from './ImportTransactionsModal'
+import { formatMoney, formatDate, inCurrentPeriod, periodLabel, usePrefs } from '../lib/prefs'
 
-function rupiah(n) {
-  return 'Rp ' + Math.round(Number(n) || 0).toLocaleString('id-ID')
-}
+const rupiah = (n) => formatMoney(n)
 
 function inRange(date, period, customFrom, customTo) {
   if (period === 'all') return true
@@ -28,7 +27,7 @@ function inRange(date, period, customFrom, customTo) {
     from.setDate(from.getDate() - 7)
     return d >= from.toISOString().slice(0, 10)
   }
-  if (period === 'month') return d.startsWith(today.slice(0, 7))
+  if (period === 'month') return inCurrentPeriod(d)
   if (period === 'year') return d.startsWith(String(now.getFullYear()))
   if (period === 'custom') {
     if (customFrom && d < customFrom) return false
@@ -90,6 +89,7 @@ export default function TransactionsPage({
   const [customTo, setCustomTo] = useState('')
   const [sortKey, setSortKey] = useState('date')
   const [sortDir, setSortDir] = useState('desc')
+  const prefs = usePrefs() // render ulang saat format/awal bulan diganti di Pengaturan
   const [upgradeModal, setUpgradeModal] = useState(null) // { tier, title, body }
   const [importOpen, setImportOpen] = useState(false)
 
@@ -428,7 +428,7 @@ export default function TransactionsPage({
             <option value="all">Semua periode</option>
             <option value="today">Hari ini</option>
             <option value="week">7 hari</option>
-            <option value="month">Bulan ini</option>
+            <option value="month">{periodLabel(prefs.monthStartDay) ? `Bulan ini (${periodLabel(prefs.monthStartDay)})` : 'Bulan ini'}</option>
             <option value="year">Tahun ini</option>
             <option value="custom">Custom</option>
           </select>
@@ -499,7 +499,7 @@ export default function TransactionsPage({
             )}
             {displayList.map((t) => (
               <tr key={t.id}>
-                <td style={tdStyle}>{t.date}</td>
+                <td style={tdStyle}>{formatDate(t.date)}</td>
                 <td style={tdStyle}>
                   <div style={{ fontWeight: 600 }}>{t.description || '—'}</div>
                   {t.note ? (
@@ -577,7 +577,7 @@ export default function TransactionsPage({
                   {t.description || '—'}
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--ink-dim)' }}>
-                  {t.date} · {t.category}
+                  {formatDate(t.date)} · {t.category}
                   {t.method ? ` · ${t.method}` : ''}
                 </div>
               </div>

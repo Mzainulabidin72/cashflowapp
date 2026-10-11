@@ -2,18 +2,18 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { loadBudget, saveBudget, sumExpenseThisMonth } from '../lib/budgetService'
 import { getUserPlanInfo } from '../lib/planAccess'
+import { formatMoney, formatNumber, usePrefs } from '../lib/prefs'
 
-function rupiah(n) {
-  return 'Rp ' + Number(n || 0).toLocaleString('id-ID')
-}
+const rupiah = (n) => formatMoney(n)
 
 function formatInputDisplay(raw) {
   const digits = String(raw || '').replace(/\D/g, '')
   if (!digits) return ''
-  return Number(digits).toLocaleString('id-ID')
+  return formatNumber(Number(digits))
 }
 
 export default function BudgetPanel({ transactions = [], onToast }) {
+  usePrefs()
   const { user } = useAuth()
   const [limit, setLimit] = useState(0)
   const [draft, setDraft] = useState('')

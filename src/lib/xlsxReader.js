@@ -201,9 +201,11 @@ function colIndex(letters) {
   return n - 1
 }
 
+const MAX_MERGE_CELLS = 5000
+const PURE_NUMBER = /^-?[\d.,]+$/
+
 function parseSheet(xml, shared, dateStyles, date1904) {
-  const records = []
-  const lines = []
+  const rows = new Map() // nomor baris → sel
   const rowRe = /<row\b([^>]*?)(?:\/>|>([\s\S]*?)<\/row>)/g
   let rm
   let prevRow = 0
@@ -266,10 +268,43 @@ function parseSheet(xml, shared, dateStyles, date1904) {
       cells[ci] = val
     }
 
-    if (!cells.some((v) => v != null && String(v).trim() !== '')) continue
+    if (cells.some((v) => v != null && String(v).trim() !== '')) rows.set(rowNum, cells)
+  }
+
+  // Sel gabungan (merge): nilai sel kiri-atas disalin ke seluruh area, kecuali kalau
+  // berupa angka murni (supaya nominal tidak terhitung ganda). Header bertingkat dan
+  // tanggal yang digabung antar-baris jadi terbaca di setiap baris.
+  const mergeRe = /<mergeCell\b[^>]*\bref\s*=\s*"([A-Za-z]+)(\d+):([A-Za-z]+)(\d+)"/g
+  let mm
+  while ((mm = mergeRe.exec(xml))) {
+    const c1 = colIndex(mm[1])
+    const r1 = Number(mm[2])
+    const c2 = colIndex(mm[3])
+    const r2 = Number(mm[4])
+    if ((r2 - r1 + 1) * (c2 - c1 + 1) > MAX_MERGE_CELLS) continue
+    const src = rows.get(r1)?.[c1]
+    if (src == null || String(src).trim() === '' || PURE_NUMBER.test(String(src).trim())) continue
+    for (let r = r1; r <= r2; r++) {
+      for (let c = c1; c <= c2; c++) {
+        if (r === r1 && c === c1) continue
+        let row = rows.get(r)
+        if (!row) {
+          row = []
+          rows.set(r, row)
+        }
+        if (row[c] == null || String(row[c]).trim() === '') row[c] = src
+      }
+    }
+  }
+
+  const records = []
+  const lines = []
+  const nums = [...rows.keys()].sort((a, b) => a - b)
+  for (const n of nums) {
+    const cells = rows.get(n)
     for (let i = 0; i < cells.length; i++) if (cells[i] == null) cells[i] = ''
     records.push(cells)
-    lines.push(rowNum)
+    lines.push(n)
     if (records.length >= MAX_ROWS_PER_SHEET) break
   }
   return { records, lines }

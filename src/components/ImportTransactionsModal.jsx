@@ -3,7 +3,8 @@ import { Upload, Download, X, Check, Lock, AlertCircle } from 'lucide-react'
 import {
   readImportFile,
   analyzeTable,
-  chooseTable,
+  analyzeAll,
+  isUsable,
   rowsFromTable,
   buildImportPlan,
   downloadImportTemplate,
@@ -20,7 +21,7 @@ const STATUS_META = {
   quota: { label: 'Melebihi kuota', color: 'var(--clay)' },
   error: { label: 'Error', color: 'var(--clay)' },
 }
-const STATUS_ORDER = { error: 0, quota: 1, dup: 2, ok: 3 }
+const STATUS_ORDER = { error: 0, quota: 1, dup: 2, ok: 3, skip: 4 }
 const PREVIEW_LIMIT = 100
 
 const MAP_FIELDS = [
@@ -32,9 +33,9 @@ const MAP_FIELDS = [
   { key: 'note', label: 'Catatan' },
   { key: 'method', label: 'Metode pembayaran' },
 ]
-const SPLIT_FIELDS = [
-  { key: 'incomeAmt', label: 'Kolom pemasukan' },
-  { key: 'expenseAmt', label: 'Kolom pengeluaran' },
+const COL_FIELDS = [
+  { key: 'incomeCols', label: 'Kolom pemasukan' },
+  { key: 'expenseCols', label: 'Kolom pengeluaran' },
 ]
 
 /**
@@ -55,8 +56,9 @@ export default function ImportTransactionsModal({
   const [step, setStep] = useState('pick') // pick | preview | importing | done
   const [fileName, setFileName] = useState('')
   const [tables, setTables] = useState([])
-  const [tableIdx, setTableIdx] = useState(0)
-  const [analysis, setAnalysis] = useState(null)
+  const [analyses, setAnalyses] = useState([])
+  const [selected, setSelected] = useState([]) // sheet mana yang diimpor
+  const [active, setActive] = useState(0) // sheet yang sedang diatur kolomnya
   const [showMap, setShowMap] = useState(false)
   const [error, setError] = useState('')
   const [dragOver, setDragOver] = useState(false)
@@ -67,37 +69,55 @@ export default function ImportTransactionsModal({
 
   const canCreateCats = planInfo?.canUseCustomCategory ?? true
   const txLimit = planInfo?.txLimitPerMonth ?? null
-  const table = tables[tableIdx] || null
+  const multi = tables.length > 1
+  const table = tables[active] || null
+  const analysis = analyses[active] || null
 
-  // Baris transaksi hasil pemetaan kolom saat ini
-  const parsed = useMemo(
-    () => (table && analysis ? rowsFromTable(table, analysis) : null),
-    [table, analysis]
-  )
+  // Baris transaksi dari semua sheet yang dicentang, memakai pemetaan kolom masing-masing
+  const combined = useMemo(() => {
+    const out = { rows: [], notices: [], missing: [], errors: [] }
+    tables.forEach((t, i) => {
+      if (!selected[i] || !analyses[i]) return
+      const tag = multi ? t.name : ''
+      const r = rowsFromTable(t, analyses[i])
+      if (r.error) out.errors.push(tag ? `${tag}: ${r.error}` : r.error)
+      else if (r.missing?.length) out.missing.push(tag ? `${tag}: ${r.missing.join(' dan ')}` : r.missing.join(' dan '))
+      else {
+        r.rows.forEach((x) => out.rows.push({ ...x, lineLabel: tag ? `${tag} · ${x.line}` : String(x.line) }))
+        r.notices.forEach((n) => out.notices.includes(n) || out.notices.push(n))
+      }
+    })
+    if (out.rows.filter((x) => !x.skip).length > IMPORT_MAX_ROWS) {
+      out.errors.push(`Maksimal ${IMPORT_MAX_ROWS.toLocaleString('id-ID')} transaksi per impor. Kurangi sheet yang dicentang.`)
+      out.rows = []
+    }
+    return out
+  }, [tables, analyses, selected, multi])
 
   const plan = useMemo(() => {
-    if (!parsed?.rows?.length) return null
-    return buildImportPlan(parsed.rows, {
+    if (!combined.rows.length) return null
+    return buildImportPlan(combined.rows, {
       existing,
       categories,
       createCategories: canCreateCats && createCategories,
       skipDuplicates,
       txLimitPerMonth: txLimit,
     })
-  }, [parsed, existing, categories, createCategories, skipDuplicates, canCreateCats, txLimit])
+  }, [combined, existing, categories, createCategories, skipDuplicates, canCreateCats, txLimit])
 
   const previewRows = useMemo(() => {
     if (!plan) return []
-    // Baris bermasalah ditaruh di atas supaya langsung kelihatan
+    // Baris bermasalah ditaruh di atas supaya langsung kelihatan; baris kosong tidak ditampilkan
     return plan.items
       .map((it, i) => ({ ...it, _i: i }))
+      .filter((it) => it.status !== 'skip')
       .sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || a._i - b._i)
   }, [plan])
 
-  // Label tiap kolom + contoh isinya, untuk dropdown pemetaan
+  // Label tiap kolom + contoh isinya, untuk pemilih kolom
   const colOptions = useMemo(() => {
     if (!table || !analysis) return []
-    const rows = table.records.slice(analysis.headerIdx + 1, analysis.headerIdx + 40)
+    const rows = table.records.slice(analysis.dataStart, analysis.dataStart + 40)
     return analysis.headers.map((h, c) => {
       const sample = rows.map((r) => String(r[c] ?? '').trim()).find(Boolean) || ''
       const short = sample.length > 16 ? sample.slice(0, 15) + '…' : sample
@@ -107,30 +127,41 @@ export default function ImportTransactionsModal({
 
   // Kolom yang ditebak dari isi data (bukan dari nama kolom) → diberi tahu ke pengguna
   const guessedLabels = useMemo(() => {
-    if (!analysis) return []
-    return [...MAP_FIELDS, ...SPLIT_FIELDS]
-      .filter((f) => analysis.sources[f.key] === 'content' && analysis.mapping[f.key] !== null)
-      .map((f) => f.label.replace(/ \(.*\)$/, '').toLowerCase())
-  }, [analysis])
+    const set = new Set()
+    analyses.forEach((a, i) => {
+      if (!selected[i]) return
+      MAP_FIELDS.forEach((f) => {
+        if (a.sources[f.key] === 'content' && a.mapping[f.key] !== null) {
+          set.add(f.label.replace(/ \(.*\)$/, '').toLowerCase())
+        }
+      })
+    })
+    return [...set]
+  }, [analyses, selected])
 
-  function runAnalysis(t, opts = {}) {
-    const a = analyzeTable(t, { categories, ...opts })
-    const hasAmt = a.mapping.amount !== null || a.mapping.incomeAmt !== null || a.mapping.expenseAmt !== null
-    setAnalysis(a)
-    setShowMap(a.mapping.date === null || !hasAmt)
-  }
+  const needsDefaultType = (a) =>
+    a.mapping.type === null &&
+    a.mapping.amount !== null &&
+    a.mapping.incomeCols.length === 0 &&
+    a.mapping.expenseCols.length === 0
+  const typeSheets = analyses.map((a, i) => (selected[i] && needsDefaultType(a) ? i : -1)).filter((i) => i >= 0)
+
+  const patchAnalysis = (i, fn) =>
+    setAnalyses((list) => list.map((a, k) => (k === i ? fn(a) : a)))
 
   async function handleFile(file) {
     setError('')
     if (!file) return
     try {
       const { tables: tbs } = await readImportFile(file)
-      const idx = chooseTable(tbs, { categories })
+      const { analyses: an, selected: sel } = analyzeAll(tbs, { categories })
       setTables(tbs)
-      setTableIdx(idx)
+      setAnalyses(an)
+      setSelected(tbs.map((_, i) => sel.includes(i)))
+      setActive(sel[0] ?? 0)
       setFileName(file.name)
       setCreateCategories(false)
-      runAnalysis(tbs[idx])
+      setShowMap(sel.some((i) => !isUsable(an[i])))
       setStep('preview')
     } catch (e) {
       console.error(e)
@@ -138,17 +169,30 @@ export default function ImportTransactionsModal({
     }
   }
 
-  function changeSheet(i) {
-    setTableIdx(i)
-    runAnalysis(tables[i])
+  function toggleSheet(i) {
+    setSelected((sel) => sel.map((v, k) => (k === i ? !v : v)))
+    setActive(i)
+    if (!isUsable(analyses[i])) setShowMap(true)
   }
 
   function changeMapping(key, value) {
-    setAnalysis((a) => ({
+    patchAnalysis(active, (a) => ({
       ...a,
       mapping: { ...a.mapping, [key]: value === '' ? null : Number(value) },
       sources: { ...a.sources, [key]: 'manual' },
     }))
+  }
+
+  function toggleCol(key, c) {
+    patchAnalysis(active, (a) => {
+      const cur = a.mapping[key]
+      const next = cur.includes(c) ? cur.filter((x) => x !== c) : [...cur, c].sort((x, y) => x - y)
+      return { ...a, mapping: { ...a.mapping, [key]: next }, sources: { ...a.sources, [key]: 'manual' } }
+    })
+  }
+
+  function changeHeaderLine(n) {
+    patchAnalysis(active, () => analyzeTable(table, { categories, forceHeaderLine: n }))
   }
 
   async function handleImport() {
@@ -174,7 +218,8 @@ export default function ImportTransactionsModal({
 
   function reset() {
     setTables([])
-    setAnalysis(null)
+    setAnalyses([])
+    setSelected([])
     setFileName('')
     setError('')
     setCreateCategories(false)
@@ -183,7 +228,7 @@ export default function ImportTransactionsModal({
   }
 
   const busy = step === 'importing'
-  const counts = plan?.counts || { ok: 0, dup: 0, error: 0, quota: 0, newCats: 0 }
+  const counts = plan?.counts || { ok: 0, dup: 0, error: 0, quota: 0, skip: 0, newCats: 0, guessed: 0 }
   const unknownCats = plan?.unknownCategories || []
 
   return (
@@ -291,7 +336,11 @@ export default function ImportTransactionsModal({
             >
               <li>
                 Cukup ada kolom <b>tanggal</b> dan <b>nominal</b>. Nama kolom bebas (Tgl, Keterangan,
-                Debit/Kredit, dll) dan judul di atas tabel dilewati otomatis.
+                Debit/Kredit, dll), header bertingkat dan judul di atas tabel dikenali otomatis.
+              </li>
+              <li>
+                Boleh banyak sheet (misalnya satu sheet per bulan) dan pemasukan yang dipecah ke
+                beberapa kolom. Baris kosong dan baris total dilewati.
               </li>
               <li>File hasil Export CSV dari aplikasi ini bisa diimpor kembali.</li>
               <li>File .xls lama: buka di Excel, lalu simpan sebagai .xlsx atau CSV.</li>
@@ -313,12 +362,10 @@ export default function ImportTransactionsModal({
           <>
             <p style={{ margin: '0 0 4px', fontSize: 13.5 }}>
               <span style={{ wordBreak: 'break-all' }}>{fileName}</span>
-              {tables.length > 1 && <span style={{ color: 'var(--ink-dim)' }}> · sheet "{table.name}"</span>}
-              {parsed?.rows?.length > 0 && (
+              {plan && (
                 <>
                   {': '}
-                  <b>{counts.ok.toLocaleString('id-ID')}</b> dari{' '}
-                  {parsed.rows.length.toLocaleString('id-ID')} baris siap diimpor.
+                  <b>{counts.ok.toLocaleString('id-ID')}</b> transaksi siap diimpor.
                 </>
               )}
             </p>
@@ -328,10 +375,47 @@ export default function ImportTransactionsModal({
                   counts.dup ? `${counts.dup} duplikat dilewati` : null,
                   counts.error ? `${counts.error} baris error` : null,
                   counts.quota ? `${counts.quota} melebihi kuota` : null,
+                  counts.skip ? `${counts.skip} baris kosong/total dilewati` : null,
                 ]
                   .filter(Boolean)
                   .join(' · ') || 'Tidak ada baris bermasalah.'}
               </p>
+            )}
+
+            {/* ---- Pilih sheet (bila file Excel punya banyak sheet) ---- */}
+            {multi && (
+              <div style={{ margin: '0 0 12px' }}>
+                <div style={{ fontSize: 12.5, color: 'var(--ink-dim)', marginBottom: 6 }}>
+                  Sheet yang diimpor
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 16px' }}>
+                  {tables.map((t, i) => (
+                    <label
+                      key={i}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        fontSize: 13,
+                        cursor: busy ? 'not-allowed' : 'pointer',
+                        opacity: !selected[i] && !isUsable(analyses[i]) ? 0.6 : 1,
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={!!selected[i]}
+                        disabled={busy}
+                        onChange={() => toggleSheet(i)}
+                        style={{ width: 15, height: 15, accentColor: 'var(--brass)' }}
+                      />
+                      {t.name}
+                      {!isUsable(analyses[i]) && (
+                        <span style={{ fontSize: 11, color: 'var(--ink-dim)' }}>(tidak dikenali)</span>
+                      )}
+                    </label>
+                  ))}
+                </div>
+              </div>
             )}
 
             {/* ---- Pengaturan kolom ---- */}
@@ -363,15 +447,15 @@ export default function ImportTransactionsModal({
                 }}
               >
                 <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
-                  {tables.length > 1 && (
+                  {multi && (
                     <label style={{ fontSize: 12.5, flex: '1 1 160px' }}>
-                      <div style={{ color: 'var(--ink-dim)', marginBottom: 4 }}>Sheet</div>
+                      <div style={{ color: 'var(--ink-dim)', marginBottom: 4 }}>Atur kolom untuk sheet</div>
                       <select
                         className="bk-select"
                         style={{ width: '100%' }}
-                        value={tableIdx}
+                        value={active}
                         disabled={busy}
-                        onChange={(e) => changeSheet(Number(e.target.value))}
+                        onChange={(e) => setActive(Number(e.target.value))}
                       >
                         {tables.map((t, i) => (
                           <option key={i} value={i}>
@@ -393,9 +477,7 @@ export default function ImportTransactionsModal({
                       disabled={busy}
                       value={analysis.headerIdx >= 0 ? table.lines[analysis.headerIdx] : 0}
                       onChange={(e) =>
-                        runAnalysis(table, {
-                          forceHeaderLine: Math.max(0, parseInt(e.target.value, 10) || 0),
-                        })
+                        changeHeaderLine(Math.max(0, parseInt(e.target.value, 10) || 0))
                       }
                     />
                   </label>
@@ -420,47 +502,52 @@ export default function ImportTransactionsModal({
                   ))}
                 </div>
 
-                <div style={{ fontSize: 12, color: 'var(--ink-dim)', margin: '12px 0 8px' }}>
-                  Kalau pemasukan dan pengeluaran ada di dua kolom terpisah (misalnya Debit dan
-                  Kredit), pilih keduanya di bawah dan kosongkan "Jumlah".
+                <div style={{ fontSize: 12, color: 'var(--ink-dim)', margin: '12px 0 8px', lineHeight: 1.5 }}>
+                  Kalau pemasukan atau pengeluaran tersebar di beberapa kolom (misalnya Ojek Online,
+                  Gaji, Pengeluaran, atau Debit dan Kredit), centang semua kolom yang berisi nominal
+                  dan kosongkan "Jumlah". Satu baris bisa menjadi beberapa transaksi.
                 </div>
                 <div
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
                     gap: 10,
                   }}
                 >
-                  {SPLIT_FIELDS.map((f) => (
-                    <MapSelect
+                  {COL_FIELDS.map((f) => (
+                    <ColsPicker
                       key={f.key}
                       field={f}
                       analysis={analysis}
                       options={colOptions}
                       disabled={busy}
-                      onChange={changeMapping}
+                      onToggle={toggleCol}
                     />
                   ))}
                 </div>
-
               </div>
             )}
 
-            {parsed?.missing?.length > 0 && (
-              <ErrorLine
-                msg={`Pilih kolom untuk: ${parsed.missing.join(' dan ')}. Buka "Atur kolom" di atas.`}
-              />
-            )}
-            {parsed?.error && <ErrorLine msg={parsed.error} />}
+            {combined.missing.map((m) => (
+              <ErrorLine key={m} msg={`Pilih kolom untuk ${m}. Buka "Atur kolom" di atas.`} />
+            ))}
+            {combined.errors.map((m) => (
+              <ErrorLine key={m} msg={m} />
+            ))}
 
-            {guessedLabels.length > 0 && !parsed?.missing?.length && (
+            {guessedLabels.length > 0 && !combined.missing.length && (
               <Notice
                 text={`Kolom ${guessedLabels.join(', ')} ditebak dari isi data karena nama kolomnya tidak dikenali. Periksa lewat "Atur kolom" jika ada yang keliru.`}
               />
             )}
-            {parsed?.notices?.map((n) => (
+            {combined.notices.map((n) => (
               <Notice key={n} text={n} />
             ))}
+            {counts.guessed > 0 && (
+              <Notice
+                text={`${counts.guessed} transaksi diberi kategori otomatis dari kata kunci di keterangan (mis. "bensin" → Transportasi). Hasilnya perkiraan, jadi cek kolom Kategori di preview.`}
+              />
+            )}
             {counts.quota > 0 && (
               <Notice
                 tone="warn"
@@ -468,28 +555,27 @@ export default function ImportTransactionsModal({
               />
             )}
 
-            {analysis.mapping.type === null &&
-              analysis.mapping.amount !== null &&
-              analysis.mapping.incomeAmt === null &&
-              analysis.mapping.expenseAmt === null &&
-              parsed?.rows?.length > 0 && (
-                <label style={{ fontSize: 12.5, display: 'block', margin: '0 0 12px' }}>
-                  <div style={{ color: 'var(--ink-dim)', marginBottom: 4 }}>
-                    Tipe transaksi (karena tidak ada kolom Tipe)
-                  </div>
-                  <select
-                    className="bk-select"
-                    style={{ width: '100%', maxWidth: 360 }}
-                    value={analysis.defaultType}
-                    disabled={busy}
-                    onChange={(e) => setAnalysis((a) => ({ ...a, defaultType: e.target.value }))}
-                  >
-                    <option value="sign">Ikuti tanda nominal (minus = pengeluaran)</option>
-                    <option value="expense">Semua pengeluaran</option>
-                    <option value="income">Semua pemasukan</option>
-                  </select>
-                </label>
-              )}
+            {typeSheets.length > 0 && plan && (
+              <label style={{ fontSize: 12.5, display: 'block', margin: '0 0 12px' }}>
+                <div style={{ color: 'var(--ink-dim)', marginBottom: 4 }}>
+                  Tipe transaksi (karena tidak ada kolom Tipe)
+                </div>
+                <select
+                  className="bk-select"
+                  style={{ width: '100%', maxWidth: 360 }}
+                  value={analyses[typeSheets[0]].defaultType}
+                  disabled={busy}
+                  onChange={(e) => {
+                    const v = e.target.value
+                    typeSheets.forEach((i) => patchAnalysis(i, (a) => ({ ...a, defaultType: v })))
+                  }}
+                >
+                  <option value="sign">Ikuti tanda nominal (minus = pengeluaran)</option>
+                  <option value="expense">Semua pengeluaran</option>
+                  <option value="income">Semua pemasukan</option>
+                </select>
+              </label>
+            )}
 
             {plan && (<>
             <div style={{ display: 'grid', gap: 8, margin: '10px 0 12px' }}>
@@ -553,8 +639,8 @@ export default function ImportTransactionsModal({
                     const msgs = [...r.errors, ...r.warnings]
                     return (
                       <tr key={r._i} style={{ opacity: r.status === 'ok' ? 1 : 0.85 }}>
-                        <td style={td}>{r.line}</td>
-                        <td style={td}>{t?.date || '—'}</td>
+                        <td style={td}>{r.lineLabel ?? r.line}</td>
+                        <td style={{ ...td, whiteSpace: 'nowrap' }}>{t?.date || '—'}</td>
                         <td style={td}>{t?.description || '—'}</td>
                         <td style={td}>{t?.category || '—'}</td>
                         <td
@@ -695,6 +781,46 @@ function MapSelect({ field, analysis, options, onChange, disabled }) {
         </div>
       )}
     </label>
+  )
+}
+
+/** Daftar centang kolom (boleh lebih dari satu). */
+function ColsPicker({ field, analysis, options, onToggle, disabled }) {
+  const chosen = analysis.mapping[field.key] || []
+  return (
+    <fieldset style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+      <legend style={{ fontSize: 12.5, color: 'var(--ink-dim)', marginBottom: 4, padding: 0 }}>
+        {field.label}
+      </legend>
+      <div
+        className="bk-scroll"
+        style={{
+          maxHeight: 140,
+          overflowY: 'auto',
+          border: '1px solid var(--paper-line)',
+          borderRadius: 8,
+          padding: '6px 8px',
+          display: 'grid',
+          gap: 4,
+        }}
+      >
+        {options.map((o) => (
+          <label
+            key={o.value}
+            style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 12.5, cursor: disabled ? 'not-allowed' : 'pointer' }}
+          >
+            <input
+              type="checkbox"
+              checked={chosen.includes(o.value)}
+              disabled={disabled}
+              onChange={() => onToggle(field.key, o.value)}
+              style={{ marginTop: 2, accentColor: 'var(--brass)' }}
+            />
+            <span>{o.label}</span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
   )
 }
 

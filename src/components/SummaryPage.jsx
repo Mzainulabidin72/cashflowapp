@@ -11,12 +11,11 @@ import {
   LineChart,
   Line,
 } from 'recharts'
+import { formatMoney, usePrefs, monthRange } from '../lib/prefs'
 import { Lock, Download, Image as ImageIcon, TrendingUp, TrendingDown } from 'lucide-react'
 
 /* Helpers — sesuaikan jika App sudah punya global rupiah/todayISO */
-function rupiah(n) {
-  return 'Rp ' + Math.round(Number(n) || 0).toLocaleString('id-ID')
-}
+const rupiah = (n) => formatMoney(n)
 function todayISO() {
   return new Date().toISOString().slice(0, 10)
 }
@@ -75,6 +74,7 @@ export default function SummaryPage({
   exportSummaryCsv,
   exportElementAsPng,
 }) {
+  const prefs = usePrefs()
   const captureRef = useRef(null)
   const [exportingImg, setExportingImg] = useState(false)
   const [period, setPeriod] = useState(canUseFullAnalytics ? '6m' : '3m')
@@ -109,22 +109,29 @@ export default function SummaryPage({
   }, [byMonth, maxMonths])
 
   const currentMonthKey = todayISO().slice(0, 7)
-  const prevMonthKey = useMemo(() => {
-    const d = new Date()
-    d.setMonth(d.getMonth() - 1)
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-  }, [])
 
-  const cur = byMonth.find((m) => m.key === currentMonthKey) || {
-    income: 0,
-    expense: 0,
-    count: 0,
+  // "Bulan ini" dan "bulan lalu" mengikuti tanggal mulai bulan di Pengaturan
+  // (tanggal 1 = bulan kalender biasa). Grafik tren per bulan tetap kalender.
+  const curRange = useMemo(() => monthRange(prefs.monthStartDay), [prefs.monthStartDay])
+  const prevRange = useMemo(() => {
+    const d = new Date(curRange.from + 'T00:00:00')
+    d.setDate(d.getDate() - 1)
+    return monthRange(prefs.monthStartDay, d)
+  }, [curRange, prefs.monthStartDay])
+
+  const sumRange = (range) => {
+    const out = { income: 0, expense: 0, count: 0 }
+    transactions.forEach((t) => {
+      const d = String(t.date || '').slice(0, 10)
+      if (d < range.from || d > range.to) return
+      if (t.type === 'income') out.income += Number(t.amount) || 0
+      else if (t.type === 'expense') out.expense += Number(t.amount) || 0
+      out.count += 1
+    })
+    return out
   }
-  const prev = byMonth.find((m) => m.key === prevMonthKey) || {
-    income: 0,
-    expense: 0,
-    count: 0,
-  }
+  const cur = useMemo(() => sumRange(curRange), [transactions, curRange])
+  const prev = useMemo(() => sumRange(prevRange), [transactions, prevRange])
 
   const totalIncomeAll = transactions
     .filter((t) => t.type === 'income')
@@ -172,7 +179,9 @@ export default function SummaryPage({
     transactions
       .filter(
         (t) =>
-          t.type === 'expense' && String(t.date || '').startsWith(currentMonthKey)
+          t.type === 'expense' &&
+          String(t.date || '').slice(0, 10) >= curRange.from &&
+          String(t.date || '').slice(0, 10) <= curRange.to
       )
       .forEach((t) => {
         map[t.category] = (map[t.category] || 0) + Number(t.amount || 0)
@@ -181,7 +190,9 @@ export default function SummaryPage({
     transactions
       .filter(
         (t) =>
-          t.type === 'expense' && String(t.date || '').startsWith(prevMonthKey)
+          t.type === 'expense' &&
+          String(t.date || '').slice(0, 10) >= prevRange.from &&
+          String(t.date || '').slice(0, 10) <= prevRange.to
       )
       .forEach((t) => {
         prevMap[t.category] = (prevMap[t.category] || 0) + Number(t.amount || 0)
@@ -196,7 +207,7 @@ export default function SummaryPage({
         pct: Math.round((val / total) * 100),
         change: pctChange(val, prevMap[name] || 0),
       }))
-  }, [transactions, currentMonthKey, prevMonthKey, topCatLimit])
+  }, [transactions, curRange, prevRange, topCatLimit])
 
   // Forecast from avg last months
   const forecast = useMemo(() => {

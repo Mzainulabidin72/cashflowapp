@@ -8,7 +8,7 @@ import {
 import {
   LayoutGrid, List, Tags, PieChart as PieIcon, Plus, Pencil, Trash2,
   Search, X, ArrowUpCircle, ArrowDownCircle, Wallet, TrendingUp, TrendingDown,
-  Receipt, AlertCircle, Check, RotateCcw, Menu, ArrowUpDown, Lock} from "lucide-react";
+  Receipt, AlertCircle, Check, RotateCcw, Menu, ArrowUpDown, Lock, Settings as SettingsIcon} from "lucide-react";
 import { useAuth } from "./context/AuthContext";
 import {
   loadTransactions,
@@ -26,6 +26,7 @@ import {
 import SubscriptionBanner from "./components/SubscriptionBanner";
 import ClientChat from "./pages/ClientChat";
 import SummaryPage from "./components/SummaryPage";
+import SettingsPage from "./components/SettingsPage";
 import TransactionsPage from "./components/TransactionsPage";
 import ClientComplaints from "./pages/ClientComplaints";
 import ClientSubscription from "./pages/ClientSubscription";
@@ -36,6 +37,10 @@ import LanilaLogo from "./components/brand/LanilaLogo";
 import { getUserPlanInfo, countTxThisMonth } from "./lib/planAccess";
 import { exportTransactionsCsv, exportSummaryCsv } from "./lib/exportCsv";
 import { exportElementAsPng } from "./lib/exportImage";
+import {
+  formatMoney, formatDayMonth, inCurrentPeriod, periodLabel,
+  usePrefs, setActiveUser, getPrefs,
+} from "./lib/prefs";
 
 /* ---------------------------------------------------------------
    Seed data — imported from the user's existing spreadsheet
@@ -306,8 +311,7 @@ function colorForCategory(name, list) {
   return CAT_COLORS[(idx >= 0 ? idx : 0) % CAT_COLORS.length];
 }
 
-const rupiah = (n) =>
-  new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0);
+const rupiah = (n) => formatMoney(n);
 
 const shortRupiah = (n) => {
   const abs = Math.abs(n);
@@ -315,12 +319,6 @@ const shortRupiah = (n) => {
   if (abs >= 1_000_000) return (n / 1_000_000).toFixed(1).replace(/\.0$/, "") + " jt";
   if (abs >= 1_000) return (n / 1_000).toFixed(0) + " rb";
   return String(n);
-};
-
-const fmtDateLong = (iso) => {
-  if (!iso) return "";
-  const d = new Date(iso + "T00:00:00");
-  return d.toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
 };
 
 const MONTH_LABEL = (key) => {
@@ -354,7 +352,7 @@ function inRange(dateISO, filter, customFrom, customTo) {
       return d >= sw && d <= ew;
     }
     case "month":
-      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+      return inCurrentPeriod(dateISO);
     case "year":
       return d.getFullYear() === now.getFullYear();
     case "custom": {
@@ -512,8 +510,10 @@ function StatCard({ label, value, icon: Icon, tone = "neutral", sub }) {
 }
 
 function PeriodFilter({ value, onChange, customFrom, customTo, onCustomFrom, onCustomTo }) {
+  const prefs = usePrefs();
+  const monthLabel = periodLabel(prefs.monthStartDay);
   const opts = [
-    ["today", "Hari ini"], ["week", "Minggu ini"], ["month", "Bulan ini"],
+    ["today", "Hari ini"], ["week", "Minggu ini"], ["month", monthLabel ? `Bulan ini (${monthLabel})` : "Bulan ini"],
     ["year", "Tahun ini"], ["custom", "Custom"], ["all", "Semua"],
   ];
   return (
@@ -542,7 +542,7 @@ function TransactionModal({ initial, categories, onSave, onClose }) {
   const [form, setForm] = useState(
     initial || {
       date: todayISO(), type: "expense", category: "", amount: "",
-      description: "", note: "", method: "",
+      description: "", note: "", method: getPrefs().defaultMethod || "",
     }
   );
   const [errors, setErrors] = useState({});
@@ -847,7 +847,7 @@ function Dashboard({ transactions, categories, saldoAwal }) {
       running += t.type === "income" ? t.amount : -t.amount;
       map[t.date] = running;
     });
-    return Object.entries(map).map(([date, saldo]) => ({ date: fmtDateLong(date).slice(0, 6), saldo }));
+    return Object.entries(map).map(([date, saldo]) => ({ date: formatDayMonth(date), saldo }));
   }, [transactions, saldoAwal]);
 
   return (
@@ -936,7 +936,9 @@ function Dashboard({ transactions, categories, saldoAwal }) {
 ------------------------------------------------------------------*/
 export default function App() {
   const { user, profile, signOut } = useAuth();
-  const [tab, setTab] = useState("dashboard");
+  if (user?.id) setActiveUser(user.id); // muat preferensi akun ini (aman dipanggil berulang)
+  usePrefs(); // render ulang saat format tanggal/angka diganti
+  const [tab, setTab] = useState(() => getPrefs().startPage || "dashboard");
   const [moreOpen, setMoreOpen] = useState(false);
 
   const location = useLocation();
@@ -967,7 +969,6 @@ export default function App() {
   const [saldoAwal, setSaldoAwal] = useState(0);
   const [loaded, setLoaded] = useState(false);
   const [toast, setToast] = useState("");
-  const [confirmReset, setConfirmReset] = useState(false);
   const [planInfo, setPlanInfo] = useState(null);
   const [txModalOpen, setTxModalOpen] = useState(false);
   const [txEditing, setTxEditing] = useState(null);
@@ -1125,6 +1126,23 @@ export default function App() {
     }
   }
 
+  async function handleClearTransactions() {
+    try {
+      await clearUserTransactions(user.id);
+      setTransactions([]);
+      showToast("Semua transaksi dihapus.");
+    } catch (e) {
+      console.error(e);
+      showToast("Gagal menghapus transaksi");
+      throw e;
+    }
+  }
+
+  async function handleSaveSaldoAwal(v) {
+    await saveSaldoAwal(user.id, v);
+    setSaldoAwal(v);
+  }
+
   async function handleLogout() {
     await signOut();
     window.location.href = "/login";
@@ -1190,6 +1208,12 @@ export default function App() {
           >
             Langganan
           </div>
+          <div
+            className={"bk-tab" + (tab === "settings" ? " bk-tab-active" : "")}
+            onClick={() => setTab("settings")}
+          >
+            <SettingsIcon size={16} /> Pengaturan
+          </div>
           {planInfo?.canUseProTools ? (
             <div
             className={"bk-tab" + (tab === "pro-tools" ? " bk-tab-active" : "")}
@@ -1214,32 +1238,6 @@ export default function App() {
             </button>
           )}
         </div>
-
-        <div style={{ marginTop: 26, paddingTop: 16, borderTop: "1px solid var(--paper-line)" }}>
-          <label className="bk-label">Saldo awal</label>
-          <input
-            type="number"
-            className="bk-input bk-mono"
-            value={saldoAwal}
-            onChange={async (e) => {
-              const v = Number(e.target.value) || 0;
-              setSaldoAwal(v);
-              try {
-                await saveSaldoAwal(user.id, v);
-              } catch (err) {
-                console.error(err);
-              }
-            }}
-          />
-        </div>
-
-        <button
-          className="bk-btn bk-btn-ghost"
-          style={{ marginTop: 16, width: "100%", justifyContent: "center", fontSize: 12 }}
-          onClick={() => setConfirmReset(true)}
-        >
-          <RotateCcw size={13} /> Reset data
-        </button>
 
         <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--paper-line)" }}>
           <div className="lanila-powered" style={{ marginBottom: 10, padding: "0 2px" }}>
@@ -1269,7 +1267,7 @@ export default function App() {
         <div className="brand">
           <span>Lanila</span>
           <span className="page-title">
-            · {tab === "dashboard" ? "Dashboard" : tab === "transactions" ? "Transaksi" : tab === "summary" ? "Ringkasan" : tab === "categories" ? "Kategori" : "Buku Kas"}
+            · {tab === "dashboard" ? "Dashboard" : tab === "transactions" ? "Transaksi" : tab === "summary" ? "Ringkasan" : tab === "categories" ? "Kategori" : tab === "settings" ? "Pengaturan" : "Buku Kas"}
           </span>
         </div>
         <button type="button" onClick={() => setMoreOpen(true)} aria-label="Menu lainnya">☰</button>
@@ -1308,6 +1306,7 @@ export default function App() {
             <button type="button" className="sheet-item" onClick={() => { goTab("chat"); setMoreOpen(false); }}>Chat Admin</button>
             <button type="button" className="sheet-item" onClick={() => { goTab("complaints"); setMoreOpen(false); }}>Keluhan</button>
             <button type="button" className="sheet-item" onClick={() => { goTab("subscription"); setMoreOpen(false); }}>Langganan</button>
+            <button type="button" className="sheet-item" onClick={() => { setTab("settings"); setMoreOpen(false); }}>Pengaturan</button>
             {planInfo?.canUseProTools && (
               <button type="button" className="sheet-item" onClick={() => { goTab("pro-tools"); setMoreOpen(false); }}>Tools Pro</button>
             )}
@@ -1399,6 +1398,24 @@ export default function App() {
             <ClientSubscription />
           </div>
         )}
+        {tab === "settings" && (
+          <SettingsPage
+            user={user}
+            profile={profile}
+            planInfo={planInfo}
+            transactions={transactions}
+            categories={categories}
+            saldoAwal={saldoAwal}
+            paymentMethods={PAYMENT_METHODS}
+            onSaveSaldoAwal={handleSaveSaldoAwal}
+            onClearTransactions={handleClearTransactions}
+            onResetAll={handleReset}
+            onGoTab={setTab}
+            onToast={showToast}
+            onLogout={handleLogout}
+            exportTransactionsCsv={exportTransactionsCsv}
+          />
+        )}
         {tab === "pro-tools" && (
           <div className="bk-support-embed">
             {planInfo?.canUseProTools ? (
@@ -1464,17 +1481,6 @@ export default function App() {
         />
       )}
 
-      {confirmReset && (
-        <ConfirmDialog
-          title="Reset semua data?"
-          body="Semua transaksi akan dihapus. Saldo awal jadi 0. Tidak mengembalikan data contoh."
-          onClose={() => setConfirmReset(false)}
-          onConfirm={async () => {
-            setConfirmReset(false);
-            await handleReset();
-          }}
-        />
-      )}
     </div>
   );
 }

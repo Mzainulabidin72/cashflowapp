@@ -18,10 +18,9 @@ import {
 import { simpleForecast, monthlyTotals } from '../lib/predictionService'
 import { exportSummaryPdf } from '../lib/exportPdf'
 import { loadTransactions } from '../lib/dataService'
+import { formatMoney, usePrefs } from '../lib/prefs'
 
-function rupiah(n) {
-  return 'Rp ' + Math.round(Number(n) || 0).toLocaleString('id-ID')
-}
+const rupiah = (n) => formatMoney(n)
 
 function goalsKey(userId) {
   return `lanila-goals-${userId}`
@@ -62,6 +61,7 @@ function dueStatus(due) {
 }
 
 export default function ProTools() {
+  usePrefs()
   const { user } = useAuth()
   const [plan, setPlan] = useState(null)
   const [wallets, setWallets] = useState([])
