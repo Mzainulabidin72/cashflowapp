@@ -1,14 +1,15 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import ThemeToggle from "./components/ThemeToggle";
+import ClientSidebar from "./components/client/ClientSidebar";
+import { MOBILE_MORE_ITEMS, canAccess } from "./lib/clientNav";
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from "recharts";
 import {
-  LayoutGrid, List, Tags, PieChart as PieIcon, Plus, Pencil, Trash2,
+  LayoutGrid, List, PieChart as PieIcon, Plus, Pencil, Trash2,
   Search, X, ArrowUpCircle, ArrowDownCircle, Wallet, TrendingUp, TrendingDown,
-  Receipt, AlertCircle, Check, RotateCcw, Menu, ArrowUpDown, Lock, Settings as SettingsIcon} from "lucide-react";
+  Receipt, AlertCircle, Check, RotateCcw, Menu, ArrowUpDown } from "lucide-react";
 import { useAuth } from "./context/AuthContext";
 import {
   loadTransactions,
@@ -964,6 +965,12 @@ export default function App() {
     else navigate("/dashboard");
   }
 
+  // Dipakai sidebar & sheet mobile: menu 'route' pindah rute, menu 'tab' hanya ganti tab
+  function selectNav(item) {
+    if (item.nav === "route") goTab(item.key);
+    else setTab(item.key);
+  }
+
   const [transactions, setTransactions] = useState([]);
   const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
   const [saldoAwal, setSaldoAwal] = useState(0);
@@ -1148,13 +1155,6 @@ export default function App() {
     window.location.href = "/login";
   }
 
-  const NAV = [
-    ["dashboard", "Dashboard", LayoutGrid],
-    ["transactions", "Transaksi", List],
-    ["categories", "Kategori", Tags],
-    ["summary", "Ringkasan", PieIcon],
-  ];
-
   if (!loaded) {
     return (
       <div className="bk-root" style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", minHeight: 400 }}>
@@ -1168,98 +1168,15 @@ export default function App() {
     <div className="bk-root" style={{ display: "flex", minHeight: "100%" }}>
       <GlobalStyle />
 
-      <aside className="bk-sidebar" style={{ width: 210, borderRight: "1px solid var(--paper-line)", padding: 18, flexShrink: 0 }}>
-        <div style={{ marginBottom: 22, padding: "0 2px" }}>
-          <LanilaLogo size={34} productName="Buku Kas" />
-        </div>
-
-        <nav style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-          <div className="ds-nav-group">Overview</div>
-          {NAV.filter(([k]) => k === "dashboard").map(([key, label, Icon]) => (
-            <div key={key} className={"bk-tab" + (tab === key ? " bk-tab-active" : "")} onClick={() => setTab(key)}>
-              <Icon size={16} /> {label}
-            </div>
-          ))}
-          <div className="ds-nav-group">Keuangan</div>
-          {NAV.filter(([k]) => k !== "dashboard").map(([key, label, Icon]) => (
-            <div key={key} className={"bk-tab" + (tab === key ? " bk-tab-active" : "")} onClick={() => setTab(key)}>
-              <Icon size={16} /> {label}
-            </div>
-          ))}
-        </nav>
-
-        <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 3 }}>
-          <div className="ds-nav-group">Support</div>
-          <div
-            className={"bk-tab" + (tab === "chat" ? " bk-tab-active" : "")}
-            onClick={() => goTab("chat")}
-          >
-            Chat Admin
-          </div>
-          <div
-            className={"bk-tab" + (tab === "complaints" ? " bk-tab-active" : "")}
-            onClick={() => goTab("complaints")}
-          >
-            Keluhan
-          </div>
-          <div
-            className={"bk-tab" + (tab === "subscription" ? " bk-tab-active" : "")}
-            onClick={() => goTab("subscription")}
-          >
-            Langganan
-          </div>
-          <div
-            className={"bk-tab" + (tab === "settings" ? " bk-tab-active" : "")}
-            onClick={() => setTab("settings")}
-          >
-            <SettingsIcon size={16} /> Pengaturan
-          </div>
-          {planInfo?.canUseProTools ? (
-            <div
-            className={"bk-tab" + (tab === "pro-tools" ? " bk-tab-active" : "")}
-            onClick={() => goTab("pro-tools")}
-          >
-            Tools Pro
-          </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => {
-                showToast("Tools Pro (wallet, utang, prediksi, PDF) khusus paket Pro. Silakan upgrade di Langganan.");
-              }}
-              style={{
-                display: "flex", alignItems: "center", gap: 8, padding: "10px 12px",
-                borderRadius: 8, color: "var(--ink-dim)", fontSize: 13,
-                background: "transparent", border: "none", cursor: "pointer",
-                width: "100%", textAlign: "left", opacity: 0.75,
-              }}
-            >
-              <Lock size={14} /> Tools Pro
-            </button>
-          )}
-        </div>
-
-        <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--paper-line)" }}>
-          <div className="lanila-powered" style={{ marginBottom: 10, padding: "0 2px" }}>
-            Powered by <strong>Lanila</strong>
-          </div>
-          <div style={{ marginBottom: 12 }}>
-            <ThemeToggle />
-          </div>
-          <div style={{ fontSize: 12, color: "var(--ink-dim)", marginBottom: 8 }}>
-            {profile?.full_name || profile?.email || user?.email || "User"}
-            <br />
-            <span style={{ fontSize: 11, opacity: 0.7 }}>{profile?.role || "user"}</span>
-          </div>
-          <button
-            className="bk-btn bk-btn-ghost"
-            style={{ width: "100%", justifyContent: "center", fontSize: 12, color: "var(--clay)" }}
-            onClick={handleLogout}
-          >
-            Logout
-          </button>
-        </div>
-      </aside>
+      <ClientSidebar
+        activeKey={tab}
+        onSelect={selectNav}
+        onLocked={(item) => showToast(item.lockedMessage)}
+        planInfo={planInfo}
+        user={user}
+        profile={profile}
+        onLogout={handleLogout}
+      />
 
       
       {/* MOBILE HEADER */}
@@ -1302,14 +1219,17 @@ export default function App() {
         <div className="bk-more-sheet-bg" onClick={() => setMoreOpen(false)}>
           <div className="bk-more-sheet" onClick={(e) => e.stopPropagation()}>
             <div className="sheet-title">Lainnya</div>
-            <button type="button" className="sheet-item" onClick={() => { setTab("categories"); setMoreOpen(false); }}>Kategori</button>
-            <button type="button" className="sheet-item" onClick={() => { goTab("chat"); setMoreOpen(false); }}>Chat Admin</button>
-            <button type="button" className="sheet-item" onClick={() => { goTab("complaints"); setMoreOpen(false); }}>Keluhan</button>
-            <button type="button" className="sheet-item" onClick={() => { goTab("subscription"); setMoreOpen(false); }}>Langganan</button>
-            <button type="button" className="sheet-item" onClick={() => { setTab("settings"); setMoreOpen(false); }}>Pengaturan</button>
-            {planInfo?.canUseProTools && (
-              <button type="button" className="sheet-item" onClick={() => { goTab("pro-tools"); setMoreOpen(false); }}>Tools Pro</button>
-            )}
+            {MOBILE_MORE_ITEMS.filter((item) => canAccess(item, planInfo)).map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                className="sheet-item"
+                onClick={() => { selectNav(item); setMoreOpen(false); }}
+              >
+                <item.icon size={18} strokeWidth={1.75} aria-hidden="true" />
+                {item.label}
+              </button>
+            ))}
             <div className="sheet-title">Akun</div>
             <div className="sheet-item" style={{ opacity: 0.85, cursor: "default" }}>
               {profile?.full_name || user?.email}
