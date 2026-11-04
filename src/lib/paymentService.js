@@ -2,6 +2,20 @@ import { supabase } from './supabase'
 import { writeLog } from './activityService'
 
 export async function createPayment({ subscriptionId, userId, amount, paymentMethod, note }) {
+  const { data: existingPayment, error: existingPaymentError } = await supabase
+    .from('subscription_payments')
+    .select('id')
+    .eq('subscription_id', subscriptionId)
+    .eq('user_id', userId)
+    .eq('status', 'pending')
+    .limit(1)
+    .maybeSingle()
+
+  if (existingPaymentError) throw existingPaymentError
+  if (existingPayment) {
+    throw new Error('Konfirmasi pembayaran untuk paket ini sudah menunggu verifikasi.')
+  }
+
   const { data, error } = await supabase
     .from('subscription_payments')
     .insert({
@@ -10,7 +24,7 @@ export async function createPayment({ subscriptionId, userId, amount, paymentMet
       amount,
       payment_method: paymentMethod || 'transfer',
       status: 'pending',
-      // pakai kolom yang ada; note disimpan di payment_method gabungan jika perlu
+      note: note || null,
     })
     .select()
     .single()
@@ -28,15 +42,32 @@ export async function createPayment({ subscriptionId, userId, amount, paymentMet
   return data
 }
 
-export async function listMyPayments(userId) {
-  const { data, error } = await supabase
+export async function listMyPayments(userId, page = 0, pageSize = 10) {
+  const from = page * pageSize
+  const { data, error, count } = await supabase
     .from('subscription_payments')
-    .select('*')
+    .select('*', { count: 'exact' })
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
+    .range(from, from + pageSize - 1)
 
   if (error) throw error
-  return data || []
+  return { payments: data || [], count: count || 0 }
+}
+
+export async function getPendingPayment(subscriptionId, userId) {
+  const { data, error } = await supabase
+    .from('subscription_payments')
+    .select('id, status, created_at')
+    .eq('subscription_id', subscriptionId)
+    .eq('user_id', userId)
+    .eq('status', 'pending')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error) throw error
+  return data
 }
 
 export async function listAllPayments() {
