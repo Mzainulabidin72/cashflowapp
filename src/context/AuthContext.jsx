@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { writeLog } from '../lib/activityService'
 
 const AuthContext = createContext(null)
 
@@ -41,6 +42,12 @@ export function AuthProvider({ children }) {
         if (session?.user) {
           const p = await fetchProfile(session.user.id)
           setProfile(p)
+          if (_event === 'SIGNED_IN' || _event === 'SIGNED_UP') {
+            const action = _event === 'SIGNED_UP' ? 'account_registration' : 'user_login'
+            setTimeout(() => {
+              writeLog({ userId: session.user.id, role: p?.role || 'user', action }).catch(console.error)
+            }, 0)
+          }
         } else {
           setProfile(null)
         }
@@ -74,6 +81,13 @@ export function AuthProvider({ children }) {
 
   // Logout
   async function signOut() {
+    if (session?.user) {
+      await writeLog({
+        userId: session.user.id,
+        role: profile?.role || 'user',
+        action: 'user_logout',
+      })
+    }
     const { error } = await supabase.auth.signOut()
     return { error }
   }

@@ -28,6 +28,8 @@ import AdminPayments from './pages/AdminPayments'
 import SuperAdminHome from './pages/SuperAdminHome'
 import SuperAdminLogs from './pages/SuperAdminLogs'
 import SuperAdminReports from './pages/SuperAdminReports'
+import SuperAdminUsers from './pages/SuperAdminUsers'
+import SuperAdminSettings from './pages/SuperAdminSettings'
 import ForgotPassword from './pages/ForgotPassword'
 import ResetPassword from './pages/ResetPassword'
 import ProTools from './pages/ProTools'
@@ -291,6 +293,70 @@ function Root() {
             element={
               <RoleRoute allow={['super_admin']}>
                 <SuperAdminHome />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/super-admin/users"
+            element={
+              <RoleRoute allow={['super_admin']}>
+                <SuperAdminUsers />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/super-admin/user-activity"
+            element={
+              <RoleRoute allow={['super_admin']}>
+                <SuperAdminLogs />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/super-admin/subscriptions"
+            element={
+              <RoleRoute allow={['super_admin']}>
+                <AdminSubscriptions />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/super-admin/payments"
+            element={
+              <RoleRoute allow={['super_admin']}>
+                <AdminPayments />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/super-admin/maintenance"
+            element={
+              <RoleRoute allow={['super_admin']}>
+                <SuperAdminSettings />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/super-admin/bank-accounts"
+            element={
+              <RoleRoute allow={['super_admin']}>
+                <SuperAdminSettings />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/super-admin/system"
+            element={
+              <RoleRoute allow={['super_admin']}>
+                <SuperAdminSettings />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/super-admin/revenue"
+            element={
+              <RoleRoute allow={['super_admin']}>
+                <SuperAdminReports />
               </RoleRoute>
             }
           />

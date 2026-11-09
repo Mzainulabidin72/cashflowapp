@@ -19,44 +19,48 @@ export async function expireStalePayments() {
     .lt('created_at', cutoff)
 
   if (error) {
-    console.warn('expireStalePayments', error.message)
-    return { expiredPayments: 0, cancelledSubs: 0 }
+    throw error
   }
   if (!stale?.length) return { expiredPayments: 0, cancelledSubs: 0 }
 
   const ids = stale.map((p) => p.id)
-  const { error: u1 } = await supabase
+  const { data: expired, error: u1 } = await supabase
     .from('subscription_payments')
     .update({
       status: 'expired',
       note: 'Otomatis dibatalkan setelah 24 jam tanpa konfirmasi',
     })
     .in('id', ids)
+    .eq('status', 'pending')
+    .select('id')
 
-  if (u1) console.warn('expire payments update', u1.message)
+  if (u1) throw u1
 
   const subIds = [
     ...new Set(stale.map((p) => p.subscription_id).filter(Boolean)),
   ]
   let cancelledSubs = 0
   if (subIds.length) {
-    const { data: subs } = await supabase
+    const { data: subs, error: subsError } = await supabase
       .from('subscriptions')
       .select('id, status')
       .in('id', subIds)
       .eq('status', 'pending')
+    if (subsError) throw subsError
     const pendingIds = (subs || []).map((s) => s.id)
     if (pendingIds.length) {
-      const { error: u2 } = await supabase
+      const { data: cancelled, error: u2 } = await supabase
         .from('subscriptions')
         .update({ status: 'cancelled' })
         .in('id', pendingIds)
-      if (!u2) cancelledSubs = pendingIds.length
-      else console.warn('expire subs', u2.message)
+        .eq('status', 'pending')
+        .select('id')
+      if (u2) throw u2
+      cancelledSubs = cancelled?.length || 0
     }
   }
 
-  return { expiredPayments: ids.length, cancelledSubs }
+  return { expiredPayments: expired?.length || 0, cancelledSubs }
 }
 
 /**

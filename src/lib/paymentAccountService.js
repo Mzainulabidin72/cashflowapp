@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { performSuperAdminAction } from './adminActionService'
 
 const KEY = 'payment_account'
 
@@ -21,15 +22,12 @@ export async function getPaymentAccount() {
 }
 
 export async function setPaymentAccount(value) {
-  const { error } = await supabase.from('system_settings').upsert({
-    key: KEY,
+  await performSuperAdminAction('payment-account-update', {
     value: {
       bank_name: value.bank_name || '',
       account_number: value.account_number || '',
       account_name: value.account_name || '',
       notes: value.notes || '',
     },
-    updated_at: new Date().toISOString(),
   })
-  if (error) throw error
 }

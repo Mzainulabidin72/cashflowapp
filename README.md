@@ -59,6 +59,16 @@ npm run dev
 
 Buka `http://localhost:5173` (atau URL yang ditampilkan).
 
+## Super Admin
+
+Panel Super Admin tersedia di `/super-admin` dengan ringkasan database, manajemen akun, langganan, pembayaran, pengaturan sistem, audit log, dan laporan. Operasi sensitif Super Admin diverifikasi di Supabase Edge Function dan memerlukan deployment:
+
+```bash
+supabase functions deploy super-admin-action
+```
+
+Function memvalidasi JWT dan role `super_admin` dari tabel `profiles` di server; jangan pernah menaruh service-role key di frontend. Akses baca panel tetap bergantung pada Row Level Security Supabase. Tinjau dan uji kebijakan RLS untuk `profiles`, `subscriptions`, `subscription_plans`, `subscription_payments`, `system_settings`, dan `activity_logs` di proyek Supabase sebelum production. Tidak ada file kebijakan/migrasi RLS dalam repository ini.
+
 ### 3. Production build
 
 ```bash

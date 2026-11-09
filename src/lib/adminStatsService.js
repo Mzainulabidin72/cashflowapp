@@ -18,10 +18,12 @@ export async function getAdminBadges() {
       .eq('status', 'pending'),
   ])
 
+  const failed = [chatRes, openCompRes, pendingPayRes, pendingSubRes].find((result) => result.error)
+  if (failed?.error) throw failed.error
   return {
-    conversations: chatRes.error ? 0 : chatRes.count || 0,
-    openComplaints: openCompRes.error ? 0 : openCompRes.count || 0,
-    pendingPayments: pendingPayRes.error ? 0 : pendingPayRes.count || 0,
-    pendingSubscriptions: pendingSubRes.error ? 0 : pendingSubRes.count || 0,
+    conversations: chatRes.count || 0,
+    openComplaints: openCompRes.count || 0,
+    pendingPayments: pendingPayRes.count || 0,
+    pendingSubscriptions: pendingSubRes.count || 0,
   }
 }

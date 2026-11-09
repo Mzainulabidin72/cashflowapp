@@ -1,9 +1,27 @@
+import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
+import {
+  Activity,
+  Banknote,
+  BarChart3,
+  ChevronLeft,
+  ChevronRight,
+  CreditCard,
+  LayoutDashboard,
+  LifeBuoy,
+  ListChecks,
+  Menu,
+  Settings,
+  Shield,
+  Users,
+  Wrench,
+  X,
+} from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import ThemeToggle from '../ThemeToggle'
 import '../../styles/admin.css'
 
-const NAV = [
+const ADMIN_NAV = [
   { group: 'Overview', items: [{ to: '/admin', label: 'Dashboard', end: true }] },
   {
     group: 'Management',
@@ -16,13 +34,35 @@ const NAV = [
   },
 ]
 
+const SUPER_ADMIN_NAV = [
+  { group: 'Overview', items: [{ to: '/super-admin', label: 'Dashboard', end: true, Icon: LayoutDashboard }] },
+  { group: 'User Management', items: [
+    { to: '/super-admin/users', label: 'All Users', Icon: Users },
+    { to: '/super-admin/user-activity', label: 'User Activity', Icon: Activity },
+  ] },
+  { group: 'Subscription & Finance', items: [
+    { to: '/super-admin/subscriptions', label: 'Subscription Management', Icon: ListChecks },
+    { to: '/super-admin/payments', label: 'Payment Verification', Icon: CreditCard },
+    { to: '/super-admin/revenue', label: 'Revenue Reports', Icon: Banknote },
+  ] },
+  { group: 'System Management', items: [
+    { to: '/super-admin/maintenance', label: 'Maintenance Mode', Icon: Wrench },
+    { to: '/super-admin/bank-accounts', label: 'Bank Account Settings', Icon: Banknote },
+    { to: '/super-admin/system', label: 'System Configuration', Icon: Settings },
+  ] },
+  { group: 'Monitoring', items: [
+    { to: '/super-admin/logs', label: 'Activity Logs', Icon: Activity },
+    { to: '/super-admin/reports', label: 'Reports', Icon: BarChart3 },
+  ] },
+]
+
 function LogoMark({ size = 32 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" fill="none" aria-hidden>
       <defs>
         <linearGradient id="adLanila" x1="8" y1="4" x2="40" y2="44">
-          <stop stopColor="#3B82F6" />
-          <stop offset="1" stopColor="#7C4DFF" />
+          <stop stopColor="#1F6B4C" />
+          <stop offset="1" stopColor="#C9A24B" />
         </linearGradient>
       </defs>
       <path
@@ -41,6 +81,10 @@ function LogoMark({ size = 32 }) {
 export default function AdminShell({ title, badges = {}, children }) {
   const { profile, signOut } = useAuth()
   const loc = useLocation()
+  const [collapsed, setCollapsed] = useState(false)
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const isSuperAdmin = profile?.role === 'super_admin'
+  const nav = isSuperAdmin ? SUPER_ADMIN_NAV : ADMIN_NAV
 
   async function logout() {
     await signOut()
@@ -54,37 +98,45 @@ export default function AdminShell({ title, badges = {}, children }) {
 
   return (
     <div className="ad-page">
-      <div className="ad-shell">
+      <div className={`ad-shell${collapsed ? ' is-collapsed' : ''}${mobileOpen ? ' mobile-open' : ''}`}>
+        {mobileOpen && <button className="ad-mobile-scrim" onClick={() => setMobileOpen(false)} aria-label="Tutup navigasi" />}
         <aside className="ad-sidebar">
           <div className="ad-brand">
             <LogoMark size={34} />
             <div className="ad-brand-text">
               <strong>Lanila</strong>
-              <span>Admin Panel</span>
+              <span>{isSuperAdmin ? 'SaaS Control Center' : 'Admin Panel'}</span>
             </div>
+            <button type="button" className="ad-collapse-btn" onClick={() => setCollapsed((v) => !v)} aria-label={collapsed ? 'Perluas sidebar' : 'Ciutkan sidebar'}>
+              {collapsed ? <ChevronRight size={17} /> : <ChevronLeft size={17} />}
+            </button>
+            <button type="button" className="ad-mobile-close" onClick={() => setMobileOpen(false)} aria-label="Tutup navigasi"><X size={18} /></button>
           </div>
-          {NAV.map((g) => (
+          {nav.map((g) => (
             <div key={g.group}>
               <div className="ad-nav-group">{g.group}</div>
               {g.items.map((item) => (
                 <Link
                   key={item.to}
                   to={item.to}
+                  title={collapsed ? item.label : undefined}
+                  onClick={() => setMobileOpen(false)}
                   className={
                     'ad-nav-link' + (active(item.to, item.end) ? ' is-active' : '')
                   }
                 >
-                  {item.label}
+                  {item.Icon && <item.Icon size={17} strokeWidth={1.8} aria-hidden="true" />}
+                  <span className="ad-nav-label">{item.label}</span>
                   {item.to === '/admin/chat' && badges.conversations > 0 && (
                     <span className="badge">{badges.conversations}</span>
                   )}
                   {item.to === '/admin/complaints' && badges.openComplaints > 0 && (
                     <span className="badge">{badges.openComplaints}</span>
                   )}
-                  {item.to === '/admin/payments' && badges.pendingPayments > 0 && (
+                  {(item.to === '/admin/payments' || item.to === '/super-admin/payments') && badges.pendingPayments > 0 && (
                     <span className="badge">{badges.pendingPayments}</span>
                   )}
-                  {item.to === '/admin/subscriptions' &&
+                  {(item.to === '/admin/subscriptions' || item.to === '/super-admin/subscriptions') &&
                     badges.pendingSubscriptions > 0 && (
                       <span className="badge">{badges.pendingSubscriptions}</span>
                     )}
@@ -93,15 +145,18 @@ export default function AdminShell({ title, badges = {}, children }) {
             </div>
           ))}
           <div style={{ marginTop: 'auto', paddingTop: 16 }}>
-            <button type="button" className="ad-nav-link" onClick={logout}>
-              Logout
+            <button type="button" className="ad-nav-link" onClick={logout} title={collapsed ? 'Logout' : undefined}>
+              <Shield size={17} aria-hidden="true" /><span className="ad-nav-label">Logout</span>
             </button>
           </div>
         </aside>
 
         <div className="ad-main">
           <header className="ad-topbar">
-            <h1>{title}</h1>
+            <div className="ad-topbar-heading">
+              {isSuperAdmin && <button type="button" className="ad-mobile-menu" onClick={() => setMobileOpen(true)} aria-label="Buka navigasi"><Menu size={20} /></button>}
+              <h1>{title}</h1>
+            </div>
             <div className="ad-topbar-right">
               <ThemeToggle label />
               <span className="ad-muted" style={{ fontSize: 12 }}>
@@ -119,13 +174,13 @@ export default function AdminShell({ title, badges = {}, children }) {
         </div>
       </div>
 
-      <nav className="ad-mobile-nav" aria-label="Admin mobile">
-        <Link to="/admin">Home</Link>
-        <Link to="/admin/chat">Chat</Link>
-        <Link to="/admin/complaints">Keluhan</Link>
-        <Link to="/admin/payments">Bayar</Link>
-        <Link to="/admin/subscriptions">Paket</Link>
-      </nav>
+      {!isSuperAdmin && <nav className="ad-mobile-nav" aria-label="Admin mobile">
+        <Link to="/admin"><LayoutDashboard size={17} />Home</Link>
+        <Link to="/admin/chat"><LifeBuoy size={17} />Chat</Link>
+        <Link to="/admin/complaints"><Activity size={17} />Keluhan</Link>
+        <Link to="/admin/payments"><CreditCard size={17} />Bayar</Link>
+        <Link to="/admin/subscriptions"><ListChecks size={17} />Paket</Link>
+      </nav>}
     </div>
   )
 }

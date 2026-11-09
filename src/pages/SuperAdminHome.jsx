@@ -1,475 +1,122 @@
 import { useEffect, useState } from 'react'
-import { useAuth } from '../context/AuthContext'
-import ThemeToggle from '../components/ThemeToggle'
+import { Activity, ArrowDownRight, ArrowUpRight, CreditCard, RefreshCw, ShieldCheck, Users, Wallet } from 'lucide-react'
 import {
-  listAllProfiles,
-  updateProfileRole,
-  updateProfileStatus,
-  getMaintenance,
-  setMaintenance,
-} from '../lib/adminService'
-import {
-  getPaymentAccount,
-  setPaymentAccount,
-} from '../lib/paymentAccountService'
+  Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart,
+  ResponsiveContainer, Tooltip, XAxis, YAxis,
+} from 'recharts'
+import AdminShell from '../components/admin/AdminShell'
+import { getSuperAdminReport } from '../lib/reportService'
+
+const MONEY = (value) => `Rp ${Number(value || 0).toLocaleString('id-ID')}`
+const COLORS = ['#5aa47a', '#c9a24b', '#7098a0', '#b88070']
+const monthLabel = (month) => new Date(`${month}-01T00:00:00`).toLocaleDateString('id-ID', { month: 'short' })
+const timestamp = (value) => value ? new Date(value).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }) : '—'
+
+function Metric({ label, value, note, Icon, tone }) {
+  return <article className="ad-kpi sa-metric">
+    <div className={`sa-metric-icon is-${tone}`}><Icon size={18} /></div>
+    <label>{label}</label>
+    <strong>{value}</strong>
+    <small>{note}</small>
+  </article>
+}
+
+function EmptyChart() {
+  return <div className="sa-chart-empty">Belum ada data pada rentang ini.</div>
+}
 
 export default function SuperAdminHome() {
-  const { profile, user, signOut } = useAuth()
-  const [rows, setRows] = useState([])
+  const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [msg, setMsg] = useState('')
-  const [maint, setMaint] = useState({
-    enabled: false,
-    title: 'Maintenance',
-    message: 'Sistem sedang dalam perbaikan.',
-    estimated_end: '',
-  })
-  const [payAcc, setPayAcc] = useState({
-    bank_name: '',
-    account_number: '',
-    account_name: '',
-    notes: '',
-  })
 
   async function load() {
     setLoading(true)
     setError('')
     try {
-      const [data, m, pay] = await Promise.all([
-        listAllProfiles(),
-        getMaintenance(),
-        getPaymentAccount(),
-      ])
-      setRows(data)
-      setMaint({
-        enabled: !!m.enabled,
-        title: m.title || 'Maintenance',
-        message: m.message || 'Sistem sedang dalam perbaikan.',
-        estimated_end: m.estimated_end || '',
-      })
-      setPayAcc({
-        bank_name: pay.bank_name || '',
-        account_number: pay.account_number || '',
-        account_name: pay.account_name || '',
-        notes: pay.notes || '',
-      })
+      setData(await getSuperAdminReport())
     } catch (e) {
-      console.error(e)
-      setError(e.message || 'Gagal memuat data')
+      setError(e.message || 'Gagal memuat ringkasan dashboard.')
     } finally {
       setLoading(false)
     }
   }
+  useEffect(() => { load() }, [])
 
-  useEffect(() => {
-    load()
-  }, [])
-
-  async function handleRoleChange(id, role) {
-    try {
-      await updateProfileRole(id, role, user?.id)
-      setMsg('Role diperbarui')
-      await load()
-    } catch (e) {
-      console.error(e)
-      setError(e.message || 'Gagal ubah role')
-    }
-  }
-
-  async function handleStatusChange(id, status) {
-    try {
-      await updateProfileStatus(id, status, user?.id)
-      setMsg('Status diperbarui')
-      await load()
-    } catch (e) {
-      console.error(e)
-      setError(e.message || 'Gagal ubah status')
-    }
-  }
-
-  async function handleSaveMaintenance() {
-    try {
-      await setMaintenance(
-        {
-          enabled: !!maint.enabled,
-          title: maint.title || 'Maintenance',
-          message: maint.message || 'Sistem sedang dalam perbaikan.',
-          estimated_end: maint.estimated_end || null,
-        },
-        user?.id
-      )
-      setMsg('Maintenance disimpan')
-    } catch (e) {
-      console.error(e)
-      setError(e.message || 'Gagal simpan maintenance')
-    }
-  }
-
-  async function handleSavePaymentAccount() {
-    try {
-      await setPaymentAccount(payAcc)
-      setMsg('Rekening pembayaran disimpan')
-    } catch (e) {
-      console.error(e)
-      setError(e.message || 'Gagal simpan rekening')
-    }
-  }
-
-  async function handleLogout() {
-    await signOut()
-    window.location.href = '/login'
-  }
+  const currencyTooltip = (value) => MONEY(value)
+  const metrics = data ? [
+    { label: 'Total Users', value: data.totalUsers, note: 'Semua akun pengguna', Icon: Users, tone: 'green' },
+    { label: 'Active Users', value: data.usersActive, note: 'Status akun aktif', Icon: ShieldCheck, tone: 'green' },
+    { label: 'Suspended Users', value: data.usersSuspended, note: 'Akun yang dibatasi', Icon: Users, tone: 'clay' },
+    { label: 'Total Subscribers', value: data.totalSubscribers, note: 'Pelanggan aktif berbayar', Icon: CreditCard, tone: 'gold' },
+    { label: 'Free Plan Users', value: data.freePlanUsers, note: 'Pengguna paket Gratis', Icon: Users, tone: 'neutral' },
+    { label: 'Basic Plan Users', value: data.basicPlanUsers, note: 'Pengguna paket Basic', Icon: CreditCard, tone: 'green' },
+    { label: 'Pro Plan Users', value: data.proPlanUsers, note: 'Pengguna paket Pro', Icon: CreditCard, tone: 'gold' },
+    { label: 'Total Revenue', value: MONEY(data.revenuePaid), note: 'Pembayaran terverifikasi', Icon: Wallet, tone: 'green' },
+    { label: 'Pending Payments', value: data.paymentsPending, note: MONEY(data.revenuePending), Icon: Activity, tone: 'clay' },
+    { label: 'Active Subscriptions', value: data.subsActive, note: `${data.subsPending} menunggu pembayaran`, Icon: ArrowUpRight, tone: 'gold' },
+  ] : []
 
   return (
-    <div className="sa-page" style={styles.wrap}>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
-        <ThemeToggle label />
+    <AdminShell title="Dashboard">
+      <div className="sa-dashboard-heading">
+        <div><p className="sa-eyebrow">OVERVIEW</p><h2>Platform overview</h2><p>Ringkasan dari data akun, langganan, dan pembayaran di Supabase.</p></div>
+        <button type="button" className="ad-btn ad-btn-ghost" onClick={load} disabled={loading}><RefreshCw size={15} />{loading ? 'Memuat…' : 'Refresh data'}</button>
       </div>
-      <header style={styles.header}>
-        <div>
-          <h1 style={styles.title}>Super Admin</h1>
-          <p style={styles.sub}>
-            {profile?.full_name || profile?.email} · role: <b>super_admin</b>
-          </p>
-        </div>
-        <button style={styles.btn} onClick={handleLogout}>
-          Logout
-        </button>
-      </header>
+      {error && <div className="sa-alert is-error" role="alert">{error}<button type="button" onClick={load}>Coba lagi</button></div>}
 
-      {msg && <p style={styles.ok}>{msg}</p>}
-      {error && <p style={styles.err}>{error}</p>}
+      {loading && !data ? <div className="sa-metrics-grid">{Array.from({ length: 10 }, (_, index) => <div key={index} className="ad-kpi sa-skeleton-kpi" />)}</div> : data && <>
+        <section className="sa-metrics-grid" aria-label="Statistik utama">
+          {metrics.map((metric) => <Metric key={metric.label} {...metric} />)}
+        </section>
 
-      <section style={styles.section}>
-        <div style={styles.sectionHead}>
-          <h2 style={styles.h2}>Maintenance Mode</h2>
-        </div>
+        <section className="sa-chart-grid">
+          <article className="ad-card sa-chart-card">
+            <header><div><h3>User registration growth</h3><p>Registrasi selama 12 bulan terakhir</p></div><span className="sa-chart-key"><i className="is-green" /> Pengguna baru</span></header>
+            {data.userGrowth.some((item) => item.users > 0) ? <ResponsiveContainer width="100%" height={245}>
+              <AreaChart data={data.userGrowth} margin={{ top: 10, right: 6, left: -18, bottom: 0 }}>
+                <defs><linearGradient id="sa-users-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#5aa47a" stopOpacity={0.32} /><stop offset="100%" stopColor="#5aa47a" stopOpacity={0.015} /></linearGradient></defs>
+                <CartesianGrid stroke="var(--ad-border)" strokeDasharray="3 4" vertical={false} />
+                <XAxis dataKey="month" tickFormatter={monthLabel} stroke="var(--ad-muted)" fontSize={11} axisLine={false} tickLine={false} />
+                <YAxis allowDecimals={false} stroke="var(--ad-muted)" fontSize={11} axisLine={false} tickLine={false} />
+                <Tooltip labelFormatter={monthLabel} contentStyle={{ background: 'var(--ad-surface)', border: '1px solid var(--ad-border)', borderRadius: 10, color: 'var(--ad-text)' }} />
+                <Area type="monotone" dataKey="users" name="Pengguna baru" stroke="#5aa47a" strokeWidth={2.5} fill="url(#sa-users-fill)" />
+              </AreaChart>
+            </ResponsiveContainer> : <EmptyChart />}
+          </article>
+          <article className="ad-card sa-chart-card">
+            <header><div><h3>Monthly revenue</h3><p>Pembayaran yang telah diverifikasi</p></div><span className="sa-chart-key"><i className="is-gold" /> Pendapatan</span></header>
+            {data.monthlyRevenue.some((item) => item.revenue > 0) ? <ResponsiveContainer width="100%" height={245}>
+              <BarChart data={data.monthlyRevenue} margin={{ top: 10, right: 6, left: -10, bottom: 0 }}>
+                <CartesianGrid stroke="var(--ad-border)" strokeDasharray="3 4" vertical={false} />
+                <XAxis dataKey="month" tickFormatter={monthLabel} stroke="var(--ad-muted)" fontSize={11} axisLine={false} tickLine={false} />
+                <YAxis tickFormatter={(value) => value >= 1000000 ? `${(value / 1000000).toFixed(1)} jt` : `${Math.round(value / 1000)} rb`} stroke="var(--ad-muted)" fontSize={10} axisLine={false} tickLine={false} />
+                <Tooltip labelFormatter={monthLabel} formatter={currencyTooltip} contentStyle={{ background: 'var(--ad-surface)', border: '1px solid var(--ad-border)', borderRadius: 10, color: 'var(--ad-text)' }} />
+                <Bar dataKey="revenue" name="Pendapatan" fill="#c9a24b" radius={[5, 5, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer> : <EmptyChart />}
+          </article>
+          <article className="ad-card sa-chart-card sa-chart-card-small">
+            <header><div><h3>Subscription distribution</h3><p>Jumlah pengguna per paket</p></div></header>
+            {Object.values(data.byPlan).some((value) => value > 0) ? <div className="sa-pie-layout">
+              <ResponsiveContainer width="100%" height={210}><PieChart><Pie data={Object.entries(data.byPlan).map(([name, value]) => ({ name, value }))} dataKey="value" nameKey="name" innerRadius={55} outerRadius={82} paddingAngle={3}>{Object.keys(data.byPlan).map((name, index) => <Cell key={name} fill={COLORS[index % COLORS.length]} />)}</Pie><Tooltip contentStyle={{ background: 'var(--ad-surface)', border: '1px solid var(--ad-border)', borderRadius: 10, color: 'var(--ad-text)' }} /></PieChart></ResponsiveContainer>
+              <div className="sa-legend-list">{Object.entries(data.byPlan).map(([name, value], index) => <div key={name}><span><i style={{ background: COLORS[index % COLORS.length] }} />{name}</span><strong>{value}</strong></div>)}</div>
+            </div> : <EmptyChart />}
+          </article>
+          <article className="ad-card sa-chart-card sa-chart-card-small">
+            <header><div><h3>Payment status</h3><p>Status pembayaran keseluruhan</p></div></header>
+            {data.byPaymentStatus.some((item) => item.value > 0) ? <div className="sa-pie-layout">
+              <ResponsiveContainer width="100%" height={210}><PieChart><Pie data={data.byPaymentStatus} dataKey="value" nameKey="name" innerRadius={55} outerRadius={82} paddingAngle={3}>{data.byPaymentStatus.map((item, index) => <Cell key={item.name} fill={COLORS[index % COLORS.length]} />)}</Pie><Tooltip contentStyle={{ background: 'var(--ad-surface)', border: '1px solid var(--ad-border)', borderRadius: 10, color: 'var(--ad-text)' }} /></PieChart></ResponsiveContainer>
+              <div className="sa-legend-list">{data.byPaymentStatus.map((item, index) => <div key={item.name}><span><i style={{ background: COLORS[index % COLORS.length] }} />{item.name}</span><strong>{item.value}</strong></div>)}</div>
+            </div> : <EmptyChart />}
+          </article>
+        </section>
 
-        <label
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            marginBottom: 12,
-            fontSize: 14,
-          }}
-        >
-          <input
-            type="checkbox"
-            checked={!!maint.enabled}
-            onChange={(e) =>
-              setMaint((p) => ({ ...p, enabled: e.target.checked }))
-            }
-          />
-          Aktifkan maintenance (blokir user biasa)
-        </label>
-
-        <label style={styles.label}>Judul</label>
-        <input
-          style={styles.input}
-          value={maint.title}
-          onChange={(e) => setMaint((p) => ({ ...p, title: e.target.value }))}
-        />
-
-        <label style={styles.label}>Pesan</label>
-        <textarea
-          style={{ ...styles.input, minHeight: 70, resize: 'vertical' }}
-          value={maint.message}
-          onChange={(e) => setMaint((p) => ({ ...p, message: e.target.value }))}
-        />
-
-        <label style={styles.label}>Perkiraan selesai (opsional)</label>
-        <input
-          style={styles.input}
-          value={maint.estimated_end || ''}
-          onChange={(e) =>
-            setMaint((p) => ({ ...p, estimated_end: e.target.value }))
-          }
-          placeholder="contoh: 12 Sep 2026, 18:00"
-        />
-
-        <button style={styles.saveBtn} onClick={handleSaveMaintenance}>
-          Simpan Maintenance
-        </button>
-      </section>
-
-      <section style={styles.section}>
-        <div style={styles.sectionHead}>
-          <h2 style={styles.h2}>Rekening Transfer (untuk client)</h2>
-        </div>
-        <p style={{ margin: '0 0 12px', color: '#A9B0A8', fontSize: 13 }}>
-          Ditampilkan di halaman Langganan client saat bayar manual.
-        </p>
-        <label style={styles.label}>Bank</label>
-        <input
-          style={styles.input}
-          value={payAcc.bank_name}
-          onChange={(e) =>
-            setPayAcc((p) => ({ ...p, bank_name: e.target.value }))
-          }
-          placeholder="BCA / Mandiri / BRI / ..."
-        />
-        <label style={styles.label}>No. rekening</label>
-        <input
-          style={styles.input}
-          value={payAcc.account_number}
-          onChange={(e) =>
-            setPayAcc((p) => ({ ...p, account_number: e.target.value }))
-          }
-          placeholder="1234567890"
-        />
-        <label style={styles.label}>Atas nama</label>
-        <input
-          style={styles.input}
-          value={payAcc.account_name}
-          onChange={(e) =>
-            setPayAcc((p) => ({ ...p, account_name: e.target.value }))
-          }
-          placeholder="Nama pemilik rekening"
-        />
-        <label style={styles.label}>Catatan</label>
-        <textarea
-          style={{ ...styles.input, minHeight: 70, resize: 'vertical' }}
-          value={payAcc.notes}
-          onChange={(e) => setPayAcc((p) => ({ ...p, notes: e.target.value }))}
-          placeholder="Contoh: cantumkan email akun di berita transfer"
-        />
-        <button style={styles.saveBtn} onClick={handleSavePaymentAccount}>
-          Simpan Rekening
-        </button>
-      </section>
-
-      <section style={styles.section}>
-        <div style={styles.sectionHead}>
-          <h2 style={styles.h2}>Semua Akun</h2>
-          <span style={styles.badge}>{rows.length} akun</span>
-        </div>
-
-        {loading && <p style={styles.muted}>Memuat...</p>}
-
-        {!loading && rows.length === 0 && (
-          <p style={styles.muted}>Belum ada akun.</p>
-        )}
-
-        {!loading && rows.length > 0 && (
-          <div style={styles.tableWrap}>
-            <table style={styles.table}>
-              <thead>
-                <tr>
-                  <th style={styles.th}>Nama</th>
-                  <th style={styles.th}>Email</th>
-                  <th style={styles.th}>Role</th>
-                  <th style={styles.th}>Status</th>
-                  <th style={styles.th}>Terdaftar</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r) => {
-                  const isSelf = r.id === user?.id
-                  return (
-                    <tr key={r.id}>
-                      <td style={styles.td}>
-                        {r.full_name || '—'}
-                        {isSelf ? ' (kamu)' : ''}
-                      </td>
-                      <td style={styles.td}>{r.email || '—'}</td>
-                      <td style={styles.td}>
-                        <select
-                          value={r.role}
-                          disabled={isSelf}
-                          onChange={(e) =>
-                            handleRoleChange(r.id, e.target.value)
-                          }
-                          style={styles.select}
-                        >
-                          <option value="user">user</option>
-                          <option value="admin">admin</option>
-                          <option value="super_admin">super_admin</option>
-                        </select>
-                      </td>
-                      <td style={styles.td}>
-                        <select
-                          value={r.status || 'active'}
-                          disabled={isSelf}
-                          onChange={(e) =>
-                            handleStatusChange(r.id, e.target.value)
-                          }
-                          style={styles.select}
-                        >
-                          <option value="active">active</option>
-                          <option value="inactive">inactive</option>
-                          <option value="suspended">suspended</option>
-                        </select>
-                      </td>
-                      <td style={styles.td}>
-                        {r.created_at
-                          ? new Date(r.created_at).toLocaleDateString('id-ID')
-                          : '—'}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
-      <div style={styles.grid}>
-        <div style={styles.card}>
-          <h3 style={{ margin: '0 0 8px', color: '#C9A24B' }}>Activity Logs</h3>
-          <p style={{ margin: '0 0 12px', color: '#A9B0A8', fontSize: 14 }}>
-            Jejak aktivitas sistem
-          </p>
-          <a
-            href="/super-admin/logs"
-            style={{
-              color: '#C9A24B',
-              fontWeight: 600,
-              textDecoration: 'none',
-              fontSize: 14,
-            }}
-          >
-            Buka Logs →
-          </a>
-        </div>
-        <div style={styles.card}>
-          <h3 style={{ margin: '0 0 8px', color: '#C9A24B' }}>Reports</h3>
-          <p style={{ margin: '0 0 12px', color: '#A9B0A8', fontSize: 14 }}>
-            Ringkasan user, langganan, revenue
-          </p>
-          <a
-            href="/super-admin/reports"
-            style={{
-              color: '#C9A24B',
-              fontWeight: 600,
-              textDecoration: 'none',
-              fontSize: 14,
-            }}
-          >
-            Buka Laporan →
-          </a>
-        </div>
-      </div>
-    </div>
+        <section className="ad-card sa-recent-activity">
+          <header><div><h3><Activity size={17} /> Recent administrative activities</h3><p>Aktivitas terbaru yang tercatat pada audit log.</p></div><a href="/super-admin/logs">Lihat semua <ArrowDownRight size={14} /></a></header>
+          {data.recentActivity.length ? <div className="sa-activity-list">{data.recentActivity.map((item) => <div key={item.id}><span className="sa-activity-dot" /><div><strong>{item.action || 'Aktivitas'}</strong><span>{item.profile?.full_name || item.profile?.email || 'Administrator'}{item.target_id ? ` · Target ${String(item.target_id).slice(0, 8)}` : ''}</span></div><time>{timestamp(item.created_at)}</time></div>)}</div> : <div className="sa-empty-state"><Activity size={23} /><strong>Belum ada aktivitas tercatat</strong><span>Aktivitas admin akan muncul di sini.</span></div>}
+        </section>
+      </>}
+    </AdminShell>
   )
-}
-
-const styles = {
-  wrap: {
-    minHeight: '100vh',
-    background: '#16231F',
-    color: '#EDEAE0',
-    padding: 24,
-  },
-  header: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  title: {
-    margin: 0,
-    fontFamily: 'Georgia, serif',
-    fontSize: 26,
-    color: '#C9A24B',
-  },
-  sub: { margin: '6px 0 0', color: '#A9B0A8', fontSize: 13 },
-  btn: {
-    background: 'transparent',
-    border: '1px solid #C4735A',
-    color: '#C4735A',
-    padding: '8px 14px',
-    borderRadius: 8,
-    cursor: 'pointer',
-  },
-  section: {
-    background: '#1D2E28',
-    border: '1px solid #2B3E37',
-    borderRadius: 12,
-    padding: 18,
-    marginBottom: 20,
-  },
-  sectionHead: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 14,
-    gap: 10,
-  },
-  h2: { margin: 0, fontSize: 18 },
-  badge: {
-    fontSize: 12,
-    background: 'rgba(201,162,75,0.15)',
-    color: '#C9A24B',
-    padding: '4px 10px',
-    borderRadius: 999,
-  },
-  muted: { color: '#A9B0A8', fontSize: 14 },
-  err: { color: '#C4735A', fontSize: 14, marginBottom: 10 },
-  ok: { color: '#7FA37F', fontSize: 14, marginBottom: 10 },
-  tableWrap: { overflowX: 'auto' },
-  table: {
-    width: '100%',
-    borderCollapse: 'collapse',
-    fontSize: 13,
-    minWidth: 560,
-  },
-  th: {
-    textAlign: 'left',
-    padding: '10px 8px',
-    borderBottom: '1px solid #2B3E37',
-    color: '#A9B0A8',
-    fontWeight: 600,
-  },
-  td: { padding: '10px 8px', borderBottom: '1px solid #2B3E37' },
-  select: {
-    background: '#16231F',
-    color: '#EDEAE0',
-    border: '1px solid #2B3E37',
-    borderRadius: 6,
-    padding: '6px 8px',
-    fontSize: 12,
-  },
-  label: {
-    display: 'block',
-    fontSize: 12,
-    color: '#A9B0A8',
-    marginBottom: 4,
-    marginTop: 10,
-  },
-  input: {
-    width: '100%',
-    boxSizing: 'border-box',
-    padding: '10px 12px',
-    borderRadius: 8,
-    border: '1px solid #2B3E37',
-    background: '#16231F',
-    color: '#EDEAE0',
-    fontSize: 14,
-  },
-  saveBtn: {
-    marginTop: 14,
-    background: '#C9A24B',
-    color: '#1B160A',
-    border: 'none',
-    borderRadius: 8,
-    padding: '10px 16px',
-    fontWeight: 600,
-    cursor: 'pointer',
-  },
-  grid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-    gap: 14,
-  },
-  card: {
-    background: '#1D2E28',
-    border: '1px solid #2B3E37',
-    borderRadius: 12,
-    padding: 18,
-  },
 }

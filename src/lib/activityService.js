@@ -16,19 +16,21 @@ export async function listActivityLogs(limit = 100) {
     .from('activity_logs')
     .select('*')
     .order('created_at', { ascending: false })
-    .limit(limit)
+    .limit(Math.min(Math.max(Number(limit) || 100, 1), 1000))
 
   if (error) throw error
   if (!data?.length) return []
 
-  const userIds = [...new Set(data.map((l) => l.user_id).filter(Boolean))]
+  const profileIds = [...new Set(data.flatMap((log) => [log.user_id, log.target_id]).filter((id) =>
+    typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)
+  ))]
   let profileMap = {}
 
-  if (userIds.length) {
+  if (profileIds.length) {
     const { data: profiles, error: pErr } = await supabase
       .from('profiles')
       .select('id, full_name, email')
-      .in('id', userIds)
+      .in('id', profileIds)
     if (pErr) throw pErr
     ;(profiles || []).forEach((p) => {
       profileMap[p.id] = p
@@ -38,5 +40,6 @@ export async function listActivityLogs(limit = 100) {
   return data.map((l) => ({
     ...l,
     profile: profileMap[l.user_id] || null,
+    targetProfile: profileMap[l.target_id] || null,
   }))
 }
