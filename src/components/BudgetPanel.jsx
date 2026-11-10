@@ -20,6 +20,8 @@ export default function BudgetPanel({ transactions = [], onToast }) {
   const [planInfo, setPlanInfo] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [loadError, setLoadError] = useState('')
+  const [reloadKey, setReloadKey] = useState(0)
 
   const spent = sumExpenseThisMonth(transactions)
   const canEdit = !!planInfo?.canUseCustomCategory
@@ -29,6 +31,7 @@ export default function BudgetPanel({ transactions = [], onToast }) {
     let cancelled = false
     ;(async () => {
       setLoading(true)
+      setLoadError('')
       try {
         const [b, info] = await Promise.all([
           loadBudget(user.id),
@@ -40,6 +43,7 @@ export default function BudgetPanel({ transactions = [], onToast }) {
         setPlanInfo(info)
       } catch (e) {
         console.error(e)
+        if (!cancelled) setLoadError(e.message || 'Budget tidak dapat dimuat.')
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -47,7 +51,7 @@ export default function BudgetPanel({ transactions = [], onToast }) {
     return () => {
       cancelled = true
     }
-  }, [user])
+  }, [user, reloadKey])
 
   async function handleSave(e) {
     e.preventDefault()
@@ -70,15 +74,39 @@ export default function BudgetPanel({ transactions = [], onToast }) {
 
   if (loading) {
     return (
-      <div className="ds-budget">
-        <p className="ds-caption">Memuat budget...</p>
-      </div>
+      <section className="ds-budget dash-budget" aria-label="Budget bulanan" aria-busy="true">
+        <div className="dash-budget-skeleton" />
+      </section>
     )
   }
 
-  const pct = limit > 0 ? Math.min(100, Math.round((spent / limit) * 100)) : 0
+  if (loadError) {
+    return (
+      <section className="ds-budget dash-budget" aria-label="Budget bulanan">
+        <div className="dash-card-heading">
+          <div>
+            <h2>Budget bulan ini</h2>
+            <p role="alert">{loadError}</p>
+          </div>
+          <button type="button" className="bk-btn bk-btn-ghost" onClick={() => setReloadKey((key) => key + 1)}>
+            Coba lagi
+          </button>
+        </div>
+      </section>
+    )
+  }
+
+  const pct = limit > 0 ? Math.round((spent / limit) * 100) : 0
   const over = limit > 0 && spent > limit
   const overAmt = over ? spent - limit : 0
+  const remaining = limit - spent
+  const status = limit <= 0
+    ? 'Atur budget untuk memantau pengeluaran'
+    : over
+      ? 'Budget terlampaui'
+      : pct >= 80
+        ? 'Mendekati batas budget'
+        : 'Dalam batas budget'
   const barColor = over
     ? 'var(--ds-expense)'
     : pct >= 80
@@ -86,59 +114,51 @@ export default function BudgetPanel({ transactions = [], onToast }) {
       : 'var(--ds-success)'
 
   return (
-    <div className="ds-budget">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
-        <h3 className="ds-card-title" style={{ margin: 0 }}>
-          Budget bulan ini
-        </h3>
+    <section className={`ds-budget dash-budget${over ? ' is-over' : ''}${limit > 0 && pct >= 80 && !over ? ' is-warning' : ''}`} aria-label="Budget bulanan">
+      <div className="dash-budget-heading">
+        <div className="dash-card-heading">
+          <div>
+            <h2>Budget bulan ini</h2>
+            <p>Pengeluaran berdasarkan transaksi bulan berjalan.</p>
+          </div>
+        </div>
         {!canEdit && (
-          <span
-            style={{
-              fontSize: 11,
-              color: 'var(--ds-primary)',
-              border: '1px solid var(--ds-primary)',
-              borderRadius: 999,
-              padding: '2px 8px',
-            }}
-          >
-            Basic/Pro
-          </span>
+          <span className="dash-budget-plan">Basic/Pro</span>
         )}
       </div>
 
-      <div style={{ marginTop: 10 }}>
-        <span className="ds-money" style={{ fontSize: 20, color: over ? 'var(--ds-expense)' : 'var(--ds-text)' }}>
-          {rupiah(spent)}
-        </span>
-        <span className="ds-caption"> dari {limit > 0 ? rupiah(limit) : '—'}</span>
+      <div className="dash-budget-metrics">
+        <div>
+          <span className="dash-budget-label">Total budget</span>
+          <strong>{limit > 0 ? rupiah(limit) : 'Belum diatur'}</strong>
+        </div>
+        <div>
+          <span className="dash-budget-label">Total pengeluaran</span>
+          <strong className={over ? 'is-expense' : ''}>{rupiah(spent)}</strong>
+        </div>
+        <div>
+          <span className="dash-budget-label">Sisa budget</span>
+          <strong className={remaining < 0 ? 'is-expense' : ''}>{limit > 0 ? rupiah(remaining) : '—'}</strong>
+        </div>
       </div>
 
       {limit > 0 && (
         <>
-          <div className="ds-budget-bar" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+          <div className="dash-budget-progress-row">
+            <span className={`dash-budget-status${over ? ' is-over' : pct >= 80 ? ' is-warning' : ''}`}>{status}</span>
+            <strong>{pct}% terpakai</strong>
+          </div>
+          <div className="ds-budget-bar dash-budget-bar" role="progressbar" aria-label="Pemakaian budget bulanan" aria-valuenow={Math.min(pct, 100)} aria-valuemin={0} aria-valuemax={100}>
             <span style={{ width: `${Math.min(pct, 100)}%`, background: barColor }} />
           </div>
-          <p className="ds-caption" style={{ margin: 0 }}>
-            {pct}% terpakai
-            {over ? ` · ${rupiah(overAmt)} di atas budget` : ''}
-          </p>
+          {over && <p className="dash-budget-overrun">Pengeluaran melebihi budget sebesar {rupiah(overAmt)}.</p>}
         </>
       )}
 
-      <form onSubmit={handleSave} style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6, border: '1px solid var(--ds-border)', borderRadius: 8, padding: '0 10px', background: 'var(--ds-bg)' }}>
-          <span className="ds-caption">Rp</span>
+      <form onSubmit={handleSave} className="dash-budget-form">
+        <label className="dash-budget-input-wrap">
+          <span>Rp</span>
           <input
-            style={{
-              flex: 1,
-              border: 'none',
-              background: 'transparent',
-              color: 'var(--ds-text)',
-              padding: '10px 0',
-              fontSize: 13,
-              outline: 'none',
-              opacity: canEdit ? 1 : 0.55,
-            }}
             inputMode="numeric"
             value={formatInputDisplay(draft)}
             disabled={!canEdit || saving}
@@ -146,16 +166,15 @@ export default function BudgetPanel({ transactions = [], onToast }) {
             placeholder="2.000.000"
             aria-label="Limit budget"
           />
-        </div>
+        </label>
         <button
           type="submit"
           className="bk-btn bk-btn-primary"
           disabled={!canEdit || saving}
-          style={{ opacity: canEdit ? 1 : 0.55 }}
         >
-          {saving ? '...' : 'Atur Budget'}
+          {saving ? 'Menyimpan...' : 'Simpan budget'}
         </button>
       </form>
-    </div>
+    </section>
   )
 }

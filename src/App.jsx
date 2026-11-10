@@ -9,7 +9,7 @@ import {
 import {
   LayoutGrid, List, PieChart as PieIcon, Plus, Pencil, Trash2,
   Search, X, ArrowUpCircle, ArrowDownCircle, Wallet, TrendingUp, TrendingDown,
-  Receipt, AlertCircle, Check, RotateCcw, Menu, ArrowUpDown } from "lucide-react";
+  Receipt, AlertCircle, Check, RotateCcw, Menu, ArrowUpDown, Tags } from "lucide-react";
 import { useAuth } from "./context/AuthContext";
 import {
   loadTransactions,
@@ -39,9 +39,12 @@ import { getUserPlanInfo, countTxThisMonth } from "./lib/planAccess";
 import { exportTransactionsCsv, exportSummaryCsv } from "./lib/exportCsv";
 import { exportElementAsPng } from "./lib/exportImage";
 import {
-  formatMoney, formatDayMonth, inCurrentPeriod, periodLabel,
-  usePrefs, setActiveUser, getPrefs,
+  formatMoney, periodLabel, usePrefs, setActiveUser, getPrefs,
 } from "./lib/prefs";
+import {
+  balanceAt, buildBalanceHistory, buildExpenseByCategory, buildIncomeExpenseChart,
+  inRange, periodBounds, previousPeriodBounds, sumByType, todayISO,
+} from "./lib/dashboardAnalytics";
 
 /* ---------------------------------------------------------------
    Seed data — imported from the user's existing spreadsheet
@@ -322,51 +325,6 @@ const shortRupiah = (n) => {
   return String(n);
 };
 
-const MONTH_LABEL = (key) => {
-  const [y, m] = key.split("-");
-  const d = new Date(Number(y), Number(m) - 1, 1);
-  return d.toLocaleDateString("id-ID", { month: "short", year: "2-digit" });
-};
-
-const todayISO = () => new Date().toISOString().slice(0, 10);
-
-function startOfWeek(d) {
-  const date = new Date(d);
-  const day = date.getDay();
-  const diff = (day === 0 ? -6 : 1) - day; // Monday start
-  date.setDate(date.getDate() + diff);
-  date.setHours(0, 0, 0, 0);
-  return date;
-}
-
-function inRange(dateISO, filter, customFrom, customTo) {
-  const d = new Date(dateISO + "T00:00:00");
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
-  switch (filter) {
-    case "today": {
-      return dateISO === todayISO();
-    }
-    case "week": {
-      const sw = startOfWeek(now);
-      const ew = new Date(sw); ew.setDate(ew.getDate() + 6);
-      return d >= sw && d <= ew;
-    }
-    case "month":
-      return inCurrentPeriod(dateISO);
-    case "year":
-      return d.getFullYear() === now.getFullYear();
-    case "custom": {
-      if (!customFrom && !customTo) return true;
-      if (customFrom && d < new Date(customFrom + "T00:00:00")) return false;
-      if (customTo && d > new Date(customTo + "T00:00:00")) return false;
-      return true;
-    }
-    default:
-      return true;
-  }
-}
-
 let nextIdCounter = 100000;
 function nextId() { return nextIdCounter++; }
 
@@ -494,19 +452,21 @@ function GlobalStyle() {
   );
 }
 
-function StatCard({ label, value, icon: Icon, tone = "neutral", sub }) {
-  const toneColor = tone === "up" ? "var(--brass)" : tone === "down" ? "var(--clay)" : "var(--ink)";
+function StatCard({ label, value, icon: Icon, tone = "neutral", sub, comparison, primary = false }) {
   return (
-    <div className="bk-card" style={{ padding: "16px 18px", flex: "1 1 180px", minWidth: 160 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-        <span style={{ fontSize: 12.5, color: "var(--ink-dim)" }}>{label}</span>
-        {Icon && <Icon size={16} color={toneColor} />}
+    <article className={`bk-card dash-stat dash-stat-${tone}${primary ? " dash-stat-primary" : ""}`}>
+      <div className="dash-stat-heading">
+        <span>{label}</span>
+        {Icon && <span className="dash-stat-icon"><Icon size={17} strokeWidth={1.8} aria-hidden="true" /></span>}
       </div>
-      <div className="bk-mono bk-serif" style={{ fontSize: 22, fontWeight: 600, color: toneColor, lineHeight: 1.2, letterSpacing: "-0.02em" }}>
-        {value}
-      </div>
-      {sub && <div style={{ fontSize: 11.5, color: "var(--ink-dim)", marginTop: 4 }}>{sub}</div>}
-    </div>
+      <p className="dash-stat-value" title={value}>{value}</p>
+      {comparison ? (
+        <div className={`dash-stat-comparison${comparison.favorable == null ? "" : comparison.favorable ? " is-positive" : " is-negative"}`}>
+          {comparison.favorable == null ? <span aria-hidden="true">—</span> : comparison.favorable ? <TrendingUp size={13} aria-hidden="true" /> : <TrendingDown size={13} aria-hidden="true" />}
+          <span>{comparison.label}</span>
+        </div>
+      ) : sub ? <div className="dash-stat-sub">{sub}</div> : null}
+    </article>
   );
 }
 
@@ -514,11 +474,14 @@ function PeriodFilter({ value, onChange, customFrom, customTo, onCustomFrom, onC
   const prefs = usePrefs();
   const monthLabel = periodLabel(prefs.monthStartDay);
   const opts = [
-    ["today", "Hari ini"], ["week", "Minggu ini"], ["month", monthLabel ? `Bulan ini (${monthLabel})` : "Bulan ini"],
-    ["year", "Tahun ini"], ["custom", "Custom"], ["all", "Semua"],
+    ["week", "Minggu ini"],
+    ["month", monthLabel ? `Bulan ini (${monthLabel})` : "Bulan ini"],
+    ["lastMonth", "Bulan lalu"],
+    ["year", "Tahun ini"],
+    ["custom", "Rentang khusus"],
   ];
   return (
-    <div className="ds-period">
+    <div className="ds-period dash-period">
       <label htmlFor="period-select">Periode</label>
       <select id="period-select" value={value} onChange={(e) => onChange(e.target.value)} aria-label="Filter periode">
         {opts.map(([k, label]) => (
@@ -526,11 +489,11 @@ function PeriodFilter({ value, onChange, customFrom, customTo, onCustomFrom, onC
         ))}
       </select>
       {value === "custom" && (
-        <>
-          <input type="date" className="bk-input" style={{ width: 145 }} value={customFrom} onChange={(e) => onCustomFrom(e.target.value)} />
-          <span className="ds-caption">s/d</span>
-          <input type="date" className="bk-input" style={{ width: 145 }} value={customTo} onChange={(e) => onCustomTo(e.target.value)} />
-        </>
+        <div className="dash-custom-range">
+          <input type="date" className="bk-input" value={customFrom} onChange={(e) => onCustomFrom(e.target.value)} aria-label="Dari tanggal" />
+          <span className="ds-caption" aria-hidden="true">s/d</span>
+          <input type="date" className="bk-input" value={customTo} onChange={(e) => onCustomTo(e.target.value)} aria-label="Sampai tanggal" />
+        </div>
       )}
     </div>
   );
@@ -800,131 +763,208 @@ function CategoriesPage({ categories, transactions, onChange, canEdit }) {
 /* ---------------------------------------------------------------
    Dashboard
 ------------------------------------------------------------------*/
-function Dashboard({ transactions, categories, saldoAwal }) {
+function Dashboard({ transactions, categories, saldoAwal, onAddTransaction }) {
   const [period, setPeriod] = useState("month");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
 
+  const bounds = useMemo(
+    () => periodBounds(period, customFrom, customTo),
+    [period, customFrom, customTo]
+  );
   const filtered = useMemo(
-    () => transactions.filter((t) => inRange(t.date, period, customFrom, customTo)),
-    [transactions, period, customFrom, customTo]
+    () => transactions.filter((t) => inRange(t.date, bounds)),
+    [transactions, bounds]
   );
 
-  const totalIncomeAll = transactions.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
-  const totalExpenseAll = transactions.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
+  const totalIncomeAll = sumByType(transactions, "income");
+  const totalExpenseAll = sumByType(transactions, "expense");
   const saldo = saldoAwal + totalIncomeAll - totalExpenseAll;
 
-  const incomeP = filtered.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
-  const expenseP = filtered.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
+  const incomeP = sumByType(filtered, "income");
+  const expenseP = sumByType(filtered, "expense");
   const selisih = incomeP - expenseP;
 
-  // income vs expense per month (last 8 months present in data)
-  const byMonth = useMemo(() => {
-    const map = {};
-    transactions.forEach((t) => {
-      const key = t.date.slice(0, 7);
-      if (!map[key]) map[key] = { key, income: 0, expense: 0 };
-      map[key][t.type] += t.amount;
-    });
-    return Object.values(map).sort((a, b) => a.key.localeCompare(b.key)).slice(-8)
-      .map((m) => ({ ...m, label: MONTH_LABEL(m.key) }));
-  }, [transactions]);
+  const priorBounds = useMemo(
+    () => previousPeriodBounds(period, bounds),
+    [period, bounds]
+  );
+  const priorTransactions = useMemo(
+    () => priorBounds ? transactions.filter((t) => inRange(t.date, priorBounds)) : [],
+    [transactions, priorBounds]
+  );
+  const previousIncome = sumByType(priorTransactions, "income");
+  const previousExpense = sumByType(priorTransactions, "expense");
+  const previousNet = previousIncome - previousExpense;
+  const makeComparison = (current, previous, higherIsBetter, formatValue = (value) => rupiah(value)) => {
+    if (!priorBounds || priorTransactions.length === 0) return null;
+    const change = current - previous;
+    if (change === 0) return { favorable: null, label: "Sama dengan periode lalu" };
+    const sign = change > 0 ? "+" : "";
+    return {
+      favorable: (change > 0) === higherIsBetter,
+      label: `${sign}${formatValue(change)} vs periode lalu`,
+    };
+  };
+  const previousBalance = priorBounds
+    ? balanceAt(transactions, saldoAwal, priorBounds.to)
+    : saldo;
 
-  // expense by category (within current filter)
   const expenseByCat = useMemo(() => {
-    const map = {};
-    filtered.filter((t) => t.type === "expense").forEach((t) => {
-      map[t.category] = (map[t.category] || 0) + t.amount;
-    });
-    return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
-  }, [filtered]);
+    return buildExpenseByCategory(transactions, bounds);
+  }, [transactions, bounds]);
+  const totalCategoryExpense = expenseByCat.reduce((sum, category) => sum + category.value, 0);
 
-  // cumulative saldo growth over time
-  const saldoGrowth = useMemo(() => {
-    const sorted = [...transactions].sort((a, b) => a.date.localeCompare(b.date));
-    let running = saldoAwal;
-    const map = {};
-    sorted.forEach((t) => {
-      running += t.type === "income" ? t.amount : -t.amount;
-      map[t.date] = running;
-    });
-    return Object.entries(map).map(([date, saldo]) => ({ date: formatDayMonth(date), saldo }));
-  }, [transactions, saldoAwal]);
+  const incomeExpenseChart = useMemo(() => {
+    return buildIncomeExpenseChart(transactions, period, bounds);
+  }, [transactions, bounds, period]);
+
+  const { balanceHistory, startingBalance, endingBalance } = useMemo(() => {
+    return buildBalanceHistory(transactions, saldoAwal, bounds);
+  }, [transactions, saldoAwal, bounds]);
+
+  const tooltipStyle = {
+    background: "var(--chart-tooltip-bg, var(--paper-raised))",
+    border: "1px solid var(--chart-tooltip-border, var(--paper-line))",
+    borderRadius: 10,
+    fontSize: 12,
+    color: "var(--chart-tooltip-text, var(--ink))",
+  };
+  const balanceComparison = makeComparison(saldo, previousBalance, true);
 
   return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginBottom: 16 }}>
-        <h2 className="bk-serif" style={{ fontSize: 22, margin: 0 }}>Dashboard</h2>
-        <PeriodFilter value={period} onChange={setPeriod} customFrom={customFrom} customTo={customTo} onCustomFrom={setCustomFrom} onCustomTo={setCustomTo} />
-      </div>
-
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
-        <StatCard label="Total saldo" value={rupiah(saldo)} icon={Wallet} tone={saldo >= 0 ? "up" : "down"} sub="Saldo awal + seluruh transaksi" />
-        <StatCard label="Pemasukan (periode)" value={rupiah(incomeP)} icon={ArrowUpCircle} tone="up" />
-        <StatCard label="Pengeluaran (periode)" value={rupiah(expenseP)} icon={ArrowDownCircle} tone="down" />
-        <StatCard label="Selisih (periode)" value={(selisih >= 0 ? "+" : "") + rupiah(selisih)} icon={selisih >= 0 ? TrendingUp : TrendingDown} tone={selisih >= 0 ? "up" : "down"} />
-        <StatCard label="Jumlah transaksi" value={String(filtered.length)} icon={Receipt} />
-      </div>
-
-      <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
-        <div className="bk-card" style={{ padding: 16, flex: "2 1 420px", minWidth: 320 }}>
-          <h4 className="bk-serif" style={{ fontSize: 15, margin: "0 0 12px" }}>Pemasukan vs pengeluaran per bulan</h4>
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={byMonth}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid, var(--paper-line))" vertical={false} fill="transparent" />
-              <XAxis dataKey="label" stroke="var(--ink-dim)" fontSize={12} tickLine={false} axisLine={false} />
-              <YAxis stroke="var(--ink-dim)" fontSize={11} tickFormatter={shortRupiah} tickLine={false} axisLine={false} width={54} />
-              <Tooltip contentStyle={{ background: "var(--chart-tooltip-bg, #1D2E28)", border: "1px solid var(--chart-tooltip-border, #2B3E37)", borderRadius: 10, fontSize: 12.5, color: "var(--chart-tooltip-text, #F2F0E8)", boxShadow: "0 8px 24px rgba(0,0,0,0.2)" }}
-                formatter={(v) => rupiah(v)} labelStyle={{ color: "#EDEAE0" }} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey="income" name="Pemasukan" fill="#C9A24B" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="expense" name="Pengeluaran" fill="#C4735A" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+    <div className="dash-page">
+      <header className="dash-header">
+        <div>
+          <h1 className="bk-serif">Dashboard</h1>
+          <p>Pantau arus kas dan kondisi keuanganmu dalam satu ringkasan.</p>
         </div>
+        <PeriodFilter value={period} onChange={setPeriod} customFrom={customFrom} customTo={customTo} onCustomFrom={setCustomFrom} onCustomTo={setCustomTo} />
+      </header>
 
-        <div className="bk-card" style={{ padding: 16, flex: "1 1 280px", minWidth: 260 }}>
-          <h4 className="bk-serif" style={{ fontSize: 15, margin: "0 0 12px" }}>Pengeluaran per kategori</h4>
-          {expenseByCat.length === 0 ? (
-            <div style={{ color: "var(--ink-dim)", fontSize: 13, padding: "30px 0", textAlign: "center" }}>Tidak ada pengeluaran di periode ini.</div>
+      <section className="dash-summary" aria-label="Ringkasan keuangan">
+        <StatCard label="Total saldo" value={rupiah(saldo)} icon={Wallet} tone={saldo < 0 ? "expense" : "primary"} primary
+          comparison={balanceComparison} />
+        <StatCard label="Pemasukan" value={rupiah(incomeP)} icon={ArrowUpCircle} tone="income"
+          comparison={makeComparison(incomeP, previousIncome, true)} />
+        <StatCard label="Pengeluaran" value={rupiah(expenseP)} icon={ArrowDownCircle} tone="expense"
+          comparison={makeComparison(expenseP, previousExpense, false)} />
+        <StatCard label="Selisih bersih" value={rupiah(selisih)} icon={selisih >= 0 ? TrendingUp : TrendingDown}
+          tone={selisih < 0 ? "expense" : "income"} comparison={makeComparison(selisih, previousNet, true)} />
+        <StatCard label="Total transaksi" value={String(filtered.length)} icon={Receipt} tone="neutral"
+          comparison={makeComparison(filtered.length, priorTransactions.length, true, (value) => `${value} transaksi`)} />
+      </section>
+
+      <section className="dash-chart-grid" aria-label="Analisis transaksi">
+        <article className="bk-card dash-chart-card dash-chart-primary">
+          <div className="dash-card-heading">
+            <div>
+              <h2>Pemasukan vs pengeluaran</h2>
+              <p>{period === "year" || incomeExpenseChart[0]?.key.length === 7 ? "Ringkasan per bulan" : "Ringkasan per hari"}</p>
+            </div>
+            <span className="dash-period-chip">{filtered.length} transaksi</span>
+          </div>
+          {incomeExpenseChart.length === 0 ? (
+            <div className="dash-chart-empty">Belum ada transaksi pada periode ini.</div>
           ) : (
-            <ResponsiveContainer width="100%" height={240}>
-              <PieChart>
-                <Pie data={expenseByCat} dataKey="value" nameKey="name" innerRadius={50} outerRadius={80} paddingAngle={2}>
-                  {expenseByCat.map((entry, i) => (
-                    <Cell key={entry.name} fill={colorForCategory(entry.name, categories.expense)} />
-                  ))}
-                </Pie>
-                <Tooltip contentStyle={{ background: "var(--chart-tooltip-bg, #1D2E28)", border: "1px solid var(--chart-tooltip-border, #2B3E37)", borderRadius: 10, fontSize: 12.5, color: "var(--chart-tooltip-text, #F2F0E8)", boxShadow: "0 8px 24px rgba(0,0,0,0.2)" }} formatter={(v) => rupiah(v)} />
-              </PieChart>
-            </ResponsiveContainer>
+            <div className="dash-chart-area">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={incomeExpenseChart} margin={{ top: 8, right: 4, left: -14, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid, var(--paper-line))" vertical={false} />
+                  <XAxis dataKey="label" stroke="var(--ink-dim)" fontSize={11} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={18} />
+                  <YAxis stroke="var(--ink-dim)" fontSize={10} tickFormatter={shortRupiah} tickLine={false} axisLine={false} width={52} />
+                  <Tooltip contentStyle={tooltipStyle} formatter={(value) => rupiah(value)} />
+                  <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+                  <Bar dataKey="income" name="Pemasukan" fill="#C9A24B" radius={[4, 4, 0, 0]} maxBarSize={24} />
+                  <Bar dataKey="expense" name="Pengeluaran" fill="#C4735A" radius={[4, 4, 0, 0]} maxBarSize={24} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           )}
-          <div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 6, maxHeight: 100, overflowY: "auto" }} className="bk-scroll">
-            {expenseByCat.slice(0, 6).map((c) => (
-              <div key={c.name} style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
-                <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ width: 7, height: 7, borderRadius: 999, background: colorForCategory(c.name, categories.expense) }} />
-                  {c.name}
-                </span>
-                <span className="bk-mono" style={{ color: "var(--ink-dim)" }}>{rupiah(c.value)}</span>
+        </article>
+
+        <article className="bk-card dash-chart-card dash-category-card">
+          <div className="dash-card-heading">
+            <div>
+              <h2>Pengeluaran per kategori</h2>
+              <p>Proporsi dari seluruh pengeluaran</p>
+            </div>
+          </div>
+          {expenseByCat.length === 0 ? (
+            <div className="dash-category-empty">
+              <p>Belum ada pengeluaran pada periode ini.</p>
+              <button type="button" className="bk-btn bk-btn-primary" onClick={onAddTransaction}>
+                <Plus size={16} aria-hidden="true" /> Tambah transaksi
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="dash-donut-wrap">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={expenseByCat} dataKey="value" nameKey="name" innerRadius="65%" outerRadius="88%" paddingAngle={2} stroke="none">
+                      {expenseByCat.map((entry) => (
+                        <Cell key={entry.name} fill={colorForCategory(entry.name, categories.expense)} />
+                      ))}
+                    </Pie>
+                    <Tooltip contentStyle={tooltipStyle} formatter={(value) => rupiah(value)} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="dash-donut-center" aria-label={`Total pengeluaran ${rupiah(totalCategoryExpense)}`}>
+                  <span>Total</span>
+                  <strong>{rupiah(totalCategoryExpense)}</strong>
+                </div>
               </div>
-            ))}
+              <ul className="dash-category-legend">
+                {expenseByCat.map((category) => {
+                  const percentage = totalCategoryExpense ? Math.round((category.value / totalCategoryExpense) * 100) : 0;
+                  return (
+                    <li key={category.name}>
+                      <span className="dash-category-name">
+                        <span className="dash-category-dot" style={{ background: colorForCategory(category.name, categories.expense) }} aria-hidden="true" />
+                        <span>{category.name}</span>
+                      </span>
+                      <span className="dash-category-value">
+                        <strong>{rupiah(category.value)}</strong>
+                        <span>{percentage}%</span>
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
+          )}
+        </article>
+      </section>
+
+      <section className="bk-card dash-chart-card dash-history-card" aria-labelledby="dash-history-title">
+        <div className="dash-card-heading dash-history-heading">
+          <div>
+            <h2 id="dash-history-title">Perkembangan saldo</h2>
+            <p>Saldo akhir pada tanggal transaksi, dihitung dari saldo awal.</p>
+          </div>
+          <div className="dash-balance-range">
+            <span>Saldo awal <strong>{rupiah(startingBalance)}</strong></span>
+            <span>Saldo akhir <strong>{rupiah(endingBalance)}</strong></span>
           </div>
         </div>
-      </div>
-
-      <div className="bk-card" style={{ padding: 16, marginTop: 14 }}>
-        <h4 className="bk-serif" style={{ fontSize: 15, margin: "0 0 12px" }}>Perkembangan saldo</h4>
-        <ResponsiveContainer width="100%" height={200}>
-          <LineChart data={saldoGrowth.slice(-60)}>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid, var(--paper-line))" vertical={false} fill="transparent" />
-            <XAxis dataKey="date" stroke="var(--ink-dim)" fontSize={10} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-            <YAxis stroke="var(--ink-dim)" fontSize={11} tickFormatter={shortRupiah} tickLine={false} axisLine={false} width={54} />
-            <Tooltip contentStyle={{ background: "var(--chart-tooltip-bg, #1D2E28)", border: "1px solid var(--chart-tooltip-border, #2B3E37)", borderRadius: 10, fontSize: 12.5, color: "var(--chart-tooltip-text, #F2F0E8)", boxShadow: "0 8px 24px rgba(0,0,0,0.2)" }} formatter={(v) => rupiah(v)} />
-            <Line type="monotone" dataKey="saldo" stroke="#C9A24B" strokeWidth={2} dot={false} />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
+        {balanceHistory.length === 0 ? (
+          <div className="dash-chart-empty">Tidak ada perubahan saldo dari transaksi pada periode ini.</div>
+        ) : (
+          <div className="dash-chart-area dash-history-chart">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={balanceHistory} margin={{ top: 10, right: 8, left: -10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid, var(--paper-line))" vertical={false} />
+                <XAxis dataKey="label" stroke="var(--ink-dim)" fontSize={10} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={22} />
+                <YAxis stroke="var(--ink-dim)" fontSize={10} tickFormatter={shortRupiah} tickLine={false} axisLine={false} width={52} />
+                <Tooltip contentStyle={tooltipStyle} formatter={(value) => [rupiah(value), "Saldo"]} labelFormatter={(label, payload) => payload?.[0]?.payload?.date || label} />
+                <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+                <Line type="stepAfter" dataKey="saldo" name="Saldo akhir hari" stroke="#C9A24B" strokeWidth={2.5} dot={balanceHistory.length < 20 ? { r: 3, fill: "#C9A24B" } : false} activeDot={{ r: 5 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </section>
     </div>
   );
 }
@@ -1191,26 +1231,23 @@ export default function App() {
       </div>
 
       <nav className="bk-mobile-tabs" aria-label="Navigasi utama">
-        <button type="button" className={"nav-item" + (tab === "dashboard" ? " is-active" : "")} onClick={() => setTab("dashboard")}>
+        <button type="button" className={"nav-item" + (tab === "dashboard" ? " is-active" : "")} aria-current={tab === "dashboard" ? "page" : undefined} onClick={() => setTab("dashboard")}>
           <LayoutGrid size={20} />
-          Home
+          Dashboard
         </button>
-        <button type="button" className={"nav-item" + (tab === "transactions" ? " is-active" : "")} onClick={() => setTab("transactions")}>
+        <button type="button" className={"nav-item" + (tab === "transactions" ? " is-active" : "")} aria-current={tab === "transactions" ? "page" : undefined} onClick={() => setTab("transactions")}>
           <List size={20} />
           Transaksi
         </button>
-        <button type="button" className={"nav-item" + (tab === "summary" ? " is-active" : "")} onClick={() => setTab("summary")}>
+        <button type="button" className={"nav-item" + (tab === "categories" ? " is-active" : "")} aria-current={tab === "categories" ? "page" : undefined} onClick={() => setTab("categories")}>
+          <Tags size={20} />
+          Kategori
+        </button>
+        <button type="button" className={"nav-item" + (tab === "summary" ? " is-active" : "")} aria-current={tab === "summary" ? "page" : undefined} onClick={() => setTab("summary")}>
           <PieIcon size={20} />
           Ringkasan
         </button>
-        {planInfo?.canUseProTools ? (
-          <a href="/pro-tools" className="nav-item"><Wallet size={20} />Tools</a>
-        ) : (
-          <button type="button" className="nav-item" onClick={() => showToast("Tools Pro khusus paket Pro")}>
-            <Wallet size={20} />Tools
-          </button>
-        )}
-        <button type="button" className="nav-item" onClick={() => setMoreOpen(true)}>
+        <button type="button" className={"nav-item" + (["dashboard", "transactions", "categories", "summary"].includes(tab) ? "" : " is-active")} aria-expanded={moreOpen} onClick={() => setMoreOpen(true)}>
           <Menu size={20} />Lainnya
         </button>
       </nav>
@@ -1245,7 +1282,15 @@ export default function App() {
         <SubscriptionBanner transactions={transactions} />
         {tab === "dashboard" && (
           <>
-            <Dashboard transactions={transactions} categories={categories} saldoAwal={saldoAwal} />
+            <Dashboard
+              transactions={transactions}
+              categories={categories}
+              saldoAwal={saldoAwal}
+              onAddTransaction={() => {
+                setTxEditing(null);
+                setTxModalOpen(true);
+              }}
+            />
             <div style={{ marginTop: 16 }}>
               <BudgetPanel transactions={transactions} onToast={showToast} />
             </div>

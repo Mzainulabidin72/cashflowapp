@@ -64,7 +64,7 @@ export const CLIENT_NAV = [
 export const CLIENT_NAV_ITEMS = CLIENT_NAV.flatMap((g) => g.items)
 
 /** Menu yang tampil di sheet "Lainnya" (mobile); sisanya sudah ada di tab bar bawah. */
-const MOBILE_MORE_KEYS = ['categories', 'chat', 'complaints', 'subscription', 'settings', 'pro-tools']
+const MOBILE_MORE_KEYS = ['chat', 'complaints', 'subscription', 'settings', 'pro-tools']
 export const MOBILE_MORE_ITEMS = MOBILE_MORE_KEYS.map((k) => CLIENT_NAV_ITEMS.find((i) => i.key === k))
 
 /** Apakah paket pengguna boleh memakai item ini? (tanpa flag access → selalu boleh) */
